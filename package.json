@@ -1,5 +1,5 @@
 {
-  "name": "ritual-quiz",
+  "name": "siggydrop",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -14,7 +14,8 @@
     "react-dom": "^18",
     "html2canvas": "^1.4.1",
     "matter-js": "^0.19.0",
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/ssr": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^20",
