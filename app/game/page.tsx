@@ -1175,7 +1175,13 @@ export default function MergeGame() {
       setUserName('');
       userNameRef.current = '';
       setShowUsernameModal(true);
+      // Clear profile data
+      setUserProfileImage(null);
+      setUserEmail(null);
+      setOauthUserId(null);
       console.log('✅ Logged out successfully');
+      // Redirect to home
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -1224,17 +1230,6 @@ export default function MergeGame() {
       
       // Do NOT redirect - let user stay on game page
     }
-  };
-
-  // Handle logout
-  const handleLogout = async () => {
-    await supabaseAuth.auth.signOut();
-    // Clear local storage
-    if (oauthUserId) {
-      localStorage.removeItem(`username_${oauthUserId}`);
-    }
-    // Redirect to home
-    window.location.href = '/';
   };
 
   return (
