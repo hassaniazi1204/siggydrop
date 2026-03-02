@@ -101,14 +101,14 @@ export default function MergeGame() {
     let mounted = true;
     let sessionChecked = false;
 
-    // Set up auth state listener FIRST
+    // Set up auth state listener
     const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔔 Auth event:', event);
         
         if (!mounted) return;
         
-        // Handle all auth events
+        // Handle INITIAL_SESSION and SIGNED_IN events
         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
           if (sessionChecked) {
             console.log('⏭️ Session already processed, skipping');
@@ -155,8 +155,7 @@ export default function MergeGame() {
             setShowUsernameModal(true);
             setNeedsUsername(false);
           }
-        }
-        else if (event === 'SIGNED_OUT') {
+        } else if (event === 'SIGNED_OUT') {
           console.log('👋 User signed out');
           sessionChecked = false;
           setUserName('');
@@ -164,8 +163,7 @@ export default function MergeGame() {
           setShowUsernameModal(true);
           setNeedsUsername(false);
           setOauthUserId(null);
-        }
-        else if (event === 'TOKEN_REFRESHED') {
+        } else if (event === 'TOKEN_REFRESHED') {
           console.log('🔄 Token refreshed');
         }
       }
@@ -174,8 +172,6 @@ export default function MergeGame() {
     // Trigger initial session check
     supabaseAuth.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-      
-      // Auth listener will handle this via INITIAL_SESSION event
       console.log('📋 Initial session check complete');
     });
 
@@ -186,24 +182,6 @@ export default function MergeGame() {
       console.log('🧹 Auth listener cleaned up');
     };
   }, [isMuted]);
-
-          setUserName('');
-          userNameRef.current = '';
-          setShowUsernameModal(true);
-        } 
-        else if (event === 'TOKEN_REFRESHED') {
-          console.log('🔄 Token refreshed');
-        }
-      }
-    );
-
-    // Cleanup
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      console.log('🧹 Auth listener cleaned up');
-    };
-  }, []); // Run once on mount
 
   // Handle mute toggle
   useEffect(() => {
