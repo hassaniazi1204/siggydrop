@@ -90,18 +90,19 @@ export default function MergeGame() {
   const wallThickness = 5;
   const spawnY = 310;  // Below larger Siggy (Siggy: y=100, height=200, so bottom=300, +10px spacing)
 
+// ✅ FIXED AUTH STATE LISTENER
 
 // NextAuth session handler
-  useEffect(() => {
-    if (status === 'loading') return;
+useEffect(() => {
+  if (status === 'loading') return;
 
-    if (session?.user) {
+  if (session?.user) {
     // User is logged in with OAuth
-      const name = session.user.name || session.user.email || 'Player';
-      setUserName(name);
-      userNameRef.current = name;
-      setUserProfileImage(session.user.image || null);
-      setShowAuthModal(false);
+    const name = session.user.name || session.user.email || 'Player';
+    setUserName(name);
+    userNameRef.current = name;
+    setUserProfileImage(session.user.image || null);
+    setShowAuthModal(false);
     
     // Start music
     if (backgroundMusicRef.current && !isMuted) {
@@ -1047,31 +1048,28 @@ export default function MergeGame() {
   };
 
   const handleGuestLogin = (username: string) => {
-  setUserName(username);
-  userNameRef.current = username;
-  setShowAuthModal(false);
-  
-  // Start music for guest
-  if (backgroundMusicRef.current && !isMuted) {
-    backgroundMusicRef.current.play().catch(console.warn);
-  }
-};
-
-
-
+    setUserName(username);
+    userNameRef.current = username;
+    setShowAuthModal(false);
+    
+    // Start music for guest
+    if (backgroundMusicRef.current && !isMuted) {
+      backgroundMusicRef.current.play().catch(console.warn);
+    }
+    };
 
   const handleLogout = async () => {
-  if (session) {
-    // OAuth user - sign out with NextAuth
-    await signOut({ callbackUrl: '/' });
-  } else {
-    // Guest user - just clear state
-    setUserName('');
-    userNameRef.current = '';
-    setUserProfileImage(null);
-    setShowAuthModal(true);
-  }
-};
+    if (session) {
+      // OAuth user - sign out with NextAuth
+      await signOut({ callbackUrl: '/' });
+    } else {
+      // Guest user - just clear state
+      setUserName('');
+      userNameRef.current = '';
+      setUserProfileImage(null);
+      setShowAuthModal(true);
+    }
+  };
 
 
 
