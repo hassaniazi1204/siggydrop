@@ -1025,8 +1025,7 @@ useEffect(() => {
     ballIdCounter = 0;
     
     // Reset user inputs
-    setShowUsernameModal(true);
-    setTempUsername('');
+    setShowAuthModal(true);
     setUserName('');
     userNameRef.current = ''; // Clear username ref
     
@@ -1225,7 +1224,7 @@ const handleLogout = async () => {
       <div className="fixed inset-0 bg-black/40" style={{ zIndex: 0 }}></div>
 
       {/* Content */}
-      <div className={`relative z-10 p-4 md:p-8 ${!showUsernameModal && userName ? 'pt-20 md:pt-24' : ''}`}>
+      <div className={`relative z-10 p-4 md:p-8 ${!showAuthModal && userName ? 'pt-20 md:pt-24' : ''}`}>
         {/* Header */}
         <div className="max-w-7xl mx-auto mb-8">
           <div className="flex justify-between items-center">
