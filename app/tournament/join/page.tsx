@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { createClient } from '@/utils/supabase/client';
 
-export default function TournamentJoinPage() {
+function TournamentJoinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -26,7 +26,6 @@ export default function TournamentJoinPage() {
 
     const joinTournament = async () => {
       try {
-        // Get tournament by code
         const { data: tournament, error: tournamentError } = await supabase
           .from('tournaments')
           .select('*')
@@ -40,7 +39,6 @@ export default function TournamentJoinPage() {
         }
 
         if (isGuest) {
-          // Handle guest join
           const guestUsername = localStorage.getItem('guestUsername');
           
           if (!guestUsername) {
@@ -49,11 +47,8 @@ export default function TournamentJoinPage() {
             return;
           }
 
-          // For guests, just redirect to lobby
-          // Note: Guest participation may have limited functionality
           router.push(`/tournament/${tournament.id}?guest=true&username=${guestUsername}`);
         } else if (session) {
-          // Handle authenticated user join via API
           const response = await fetch('/api/tournaments/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -68,7 +63,6 @@ export default function TournamentJoinPage() {
             return;
           }
 
-          // Redirect to tournament lobby
           router.push(`/tournament/${tournament.id}`);
         } else {
           setError('Please sign in to join tournaments');
@@ -115,4 +109,19 @@ export default function TournamentJoinPage() {
   }
 
   return null;
+}
+
+export default function TournamentJoinPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-purple-900">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-bounce">🏆</div>
+          <h1 className="text-3xl font-black text-white mb-2">Loading...</h1>
+        </div>
+      </div>
+    }>
+      <TournamentJoinContent />
+    </Suspense>
+  );
 }
