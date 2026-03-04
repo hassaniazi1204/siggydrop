@@ -3,7 +3,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { useSession, signOut } from 'next-auth/react';
-import NextAuthModal from './NextAuthModal';
+
+// Dynamically import NextAuthModal only when needed (not in tournament mode)
+const NextAuthModal = typeof window !== 'undefined' 
+  ? require('./NextAuthModal').default 
+  : null;
 
 // Ball level configuration
 const BALL_CONFIG = [
@@ -1203,7 +1207,7 @@ export default function MergeGame(props?: GameProps) {
 
 
       {/* Auth Modal - Show after check completes AND no session */}
-      {showAuthModal && (
+      {showAuthModal && !tournamentMode && NextAuthModal && (
   <NextAuthModal
     isOpen={showAuthModal}
     onGuestLogin={handleGuestLogin}
