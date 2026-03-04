@@ -100,7 +100,7 @@ export default function TournamentGamePage() {
           game_started_at: new Date().toISOString(),
         })
         .eq('tournament_id', tournamentId)
-        .eq('user_id', session?.user?.id);
+        .eq('user_id', (session?.user as any)?.id);
     }
   }, [tournament?.status, gameStarted, tournamentId, session, supabase]);
 
@@ -251,7 +251,7 @@ export default function TournamentGamePage() {
             <div className="p-6">
               <LiveLeaderboard 
                 tournamentId={tournamentId}
-                currentUserId={session?.user?.id}
+                currentUserId={(session?.user as any)?.id}
                 compact={true}
               />
             </div>
