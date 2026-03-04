@@ -63,7 +63,7 @@ export default function TournamentLobby() {
       }
 
       setTournament(data);
-      setIsCreator(session?.user?.id === data.created_by);
+      setIsCreator((session?.user as any)?.id === data.created_by);
       setLoading(false);
     };
 
