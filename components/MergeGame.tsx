@@ -4,11 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { useSession, signOut } from 'next-auth/react';
 
-// Dynamically import NextAuthModal only when needed (not in tournament mode)
-const NextAuthModal = typeof window !== 'undefined' 
-  ? require('./NextAuthModal').default 
-  : null;
-
 // Ball level configuration
 const BALL_CONFIG = [
   { level: 1, radius: 15, image: '/avatars/stefan2.png', color: '#8B5CF6', score: 10, name: 'stefan', shape: 'square' as const },
@@ -1207,12 +1202,20 @@ export default function MergeGame(props?: GameProps) {
 
 
       {/* Auth Modal - Show after check completes AND no session */}
-      {showAuthModal && !tournamentMode && NextAuthModal && (
-  <NextAuthModal
-    isOpen={showAuthModal}
-    onGuestLogin={handleGuestLogin}
-  />
-)}
+      {showAuthModal && !tournamentMode && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-900 border-2 border-purple-500/30 rounded-2xl p-8 max-w-md">
+            <h2 className="text-3xl font-black text-white mb-4">Sign In Required</h2>
+            <p className="text-gray-400 mb-6">Please sign in to play the game.</p>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      )}
 
 
       {/* Profile Header - Only show when logged in and not in auth modal */}
