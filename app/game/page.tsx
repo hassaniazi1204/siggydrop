@@ -47,13 +47,15 @@ interface GameProps {
   disabled?: boolean;
 }
 
-export default function MergeGame({ 
-  tournamentMode = false,
-  onScoreChange,
-  onBallDropped,
-  onMerge,
-  disabled = false 
-}: GameProps = {}) {
+export default function MergeGame(props: GameProps = {}) {
+  const { 
+    tournamentMode = false,
+    onScoreChange,
+    onBallDropped,
+    onMerge,
+    disabled = false 
+  } = props;
+  
   const { data: session, status } = useSession();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
