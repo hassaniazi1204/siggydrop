@@ -1,124 +1,254 @@
 'use client';
 
-import { useState } from 'react';
-import { useSession } from 'next-auth/react';
-import PlayModeModal from '@/components/PlayModeModal';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 
-export default function HomePage() {
-  const { data: session } = useSession();
-  const [showPlayModal, setShowPlayModal] = useState(false);
+export default function LandingPage() {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(true);
+  }, []);
 
   return (
-    <main className="min-h-screen relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-purple-900">
-      {/* Background Pattern */}
-      <div 
-        className="absolute inset-0 opacity-10"
+    <main
+      style={{
+        minHeight: '100vh',
+        width: '100%',
+        backgroundImage: 'url(/brand-assets/Patterns/Wormhole.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontFamily: "'Barlow', sans-serif",
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Dark overlay so text pops over the wormhole */}
+      <div
         style={{
-          backgroundImage: 'url(/brand-assets/Patterns/Layers.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.45)',
+          zIndex: 0,
         }}
       />
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-8">
-        {/* Logo/Title */}
-        <div className="text-center mb-12">
-          <h1 className="text-7xl md:text-9xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent mb-4">
-            SIGGYDROP
-          </h1>
-          <p className="text-2xl md:text-3xl text-gray-300 font-bold">
-            Merge • Drop • Dominate
-          </p>
-        </div>
-
-        {/* Play Button */}
-        <button
-          onClick={() => setShowPlayModal(true)}
-          className="group relative px-12 py-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-2xl font-black text-3xl transition-all hover:scale-110 shadow-2xl shadow-purple-500/50 mb-8"
+      {/* MAIN CONTENT */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexGrow: 1,
+          width: '100%',
+          padding: '60px 24px 0',
+          textAlign: 'center',
+        }}
+      >
+        {/* Logo */}
+        <div
+          style={{
+            opacity: loaded ? 1 : 0,
+            transform: loaded ? 'translateY(0)' : 'translateY(-20px)',
+            transition: 'opacity 0.8s ease, transform 0.8s ease',
+            marginBottom: '52px',
+          }}
         >
-          <span className="relative z-10">▶️ PLAY NOW</span>
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-400 rounded-2xl opacity-0 group-hover:opacity-20 transition-opacity" />
-        </button>
-
-        {/* User Status */}
-        {session ? (
-          <div className="flex items-center gap-3 px-6 py-3 bg-gray-900/80 rounded-full border border-purple-500/30">
-            {session.user?.image && (
-              <img
-                src={session.user.image}
-                alt={session.user?.name || 'User'}
-                className="w-8 h-8 rounded-full border-2 border-purple-400"
-              />
-            )}
-            <span className="text-white font-semibold">
-              Welcome, {session.user?.name || 'Player'}!
-            </span>
-          </div>
-        ) : (
-          <p className="text-gray-400 text-lg">
-            Click PLAY NOW to get started
-          </p>
-        )}
-
-        {/* Features */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl w-full">
-          {/* Feature 1 */}
-          <div className="text-center p-6 bg-gray-900/50 rounded-xl border border-purple-500/30">
-            <div className="text-5xl mb-4">🎮</div>
-            <h3 className="text-xl font-black text-white mb-2">Solo Play</h3>
-            <p className="text-gray-400 text-sm">
-              Practice and master your skills
-            </p>
-          </div>
-
-          {/* Feature 2 */}
-          <div className="text-center p-6 bg-gray-900/50 rounded-xl border border-purple-500/30">
-            <div className="text-5xl mb-4">🏆</div>
-            <h3 className="text-xl font-black text-white mb-2">Tournaments</h3>
-            <p className="text-gray-400 text-sm">
-              Compete in real-time battles
-            </p>
-          </div>
-
-          {/* Feature 3 */}
-          <div className="text-center p-6 bg-gray-900/50 rounded-xl border border-purple-500/30">
-            <div className="text-5xl mb-4">📊</div>
-            <h3 className="text-xl font-black text-white mb-2">Leaderboards</h3>
-            <p className="text-gray-400 text-sm">
-              Climb the global rankings
-            </p>
-          </div>
+          <img
+            src="/brand-assets/Lockup/Translucent.png"
+            alt="Ritual"
+            style={{
+              width: 'clamp(200px, 30vw, 400px)',
+              height: 'auto',
+              display: 'block',
+              margin: '0 auto',
+              filter: 'drop-shadow(0 0 40px rgba(64,255,175,0.35))',
+            }}
+          />
         </div>
 
-        {/* How to Play */}
-        <div className="mt-12 text-center max-w-2xl">
-          <h2 className="text-2xl font-black text-white mb-4">How to Play</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400">
-            <div>
-              <span className="text-purple-400 font-bold">1. Click</span>
-              <br />
-              Drop balls
-            </div>
-            <div>
-              <span className="text-purple-400 font-bold">2. Merge</span>
-              <br />
-              Same levels combine
-            </div>
-            <div>
-              <span className="text-purple-400 font-bold">3. Score</span>
-              <br />
-              Get the highest points
-            </div>
-          </div>
+        {/* Heading */}
+        <div
+          style={{
+            opacity: loaded ? 1 : 0,
+            transform: loaded ? 'translateY(0)' : 'translateY(20px)',
+            transition: 'opacity 0.8s ease 0.2s, transform 0.8s ease 0.2s',
+            marginBottom: '24px',
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 'clamp(2rem, 5vw, 4rem)',
+              fontWeight: 900,
+              color: '#FFFFFF',
+              letterSpacing: '-0.03em',
+              lineHeight: 1.1,
+              margin: 0,
+              textShadow: '0 2px 40px rgba(0,0,0,0.8)',
+            }}
+          >
+            The state of AI is flawed.
+          </h1>
+        </div>
+
+        {/* Sub-heading */}
+        <div
+          style={{
+            opacity: loaded ? 1 : 0,
+            transform: loaded ? 'translateY(0)' : 'translateY(20px)',
+            transition: 'opacity 0.8s ease 0.35s, transform 0.8s ease 0.35s',
+            marginBottom: '64px',
+            maxWidth: '680px',
+          }}
+        >
+          <p
+            style={{
+              fontSize: 'clamp(1.05rem, 2.2vw, 1.45rem)',
+              fontWeight: 500,
+              color: '#40FFAF',
+              lineHeight: 1.6,
+              margin: 0,
+              textShadow: '0 0 30px rgba(64,255,175,0.4)',
+            }}
+          >
+            Ritual is the solution.{' '}
+            <span style={{ color: '#E7E7E7', fontWeight: 400 }}>
+              It Brings AI to Every Protocol and App with Just a Few Lines of Code.
+            </span>
+          </p>
+        </div>
+
+        {/* CTA Buttons */}
+        <div
+          style={{
+            opacity: loaded ? 1 : 0,
+            transform: loaded ? 'translateY(0)' : 'translateY(20px)',
+            transition: 'opacity 0.8s ease 0.5s, transform 0.8s ease 0.5s',
+            display: 'flex',
+            gap: '24px',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+          }}
+        >
+          <Link href="/quiz" style={{ textDecoration: 'none' }}>
+            <button
+              style={{
+                padding: '20px 56px',
+                fontSize: 'clamp(1rem, 2vw, 1.25rem)',
+                fontWeight: 800,
+                fontFamily: "'Barlow', sans-serif",
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: '#000000',
+                background: 'linear-gradient(135deg, #40FFAF 0%, #077345 100%)',
+                border: 'none',
+                borderRadius: '14px',
+                cursor: 'pointer',
+                boxShadow: '0 0 40px rgba(64,255,175,0.45), 0 8px 24px rgba(0,0,0,0.4)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px) scale(1.03)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 60px rgba(64,255,175,0.6), 0 12px 32px rgba(0,0,0,0.5)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0) scale(1)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 40px rgba(64,255,175,0.45), 0 8px 24px rgba(0,0,0,0.4)';
+              }}
+            >
+              Start Quiz
+            </button>
+          </Link>
+
+          <Link href="/game" style={{ textDecoration: 'none' }}>
+            <button
+              style={{
+                padding: '20px 56px',
+                fontSize: 'clamp(1rem, 2vw, 1.25rem)',
+                fontWeight: 800,
+                fontFamily: "'Barlow', sans-serif",
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: '#FFFFFF',
+                background: 'linear-gradient(135deg, #8840FF 0%, #E554E8 100%)',
+                border: 'none',
+                borderRadius: '14px',
+                cursor: 'pointer',
+                boxShadow: '0 0 40px rgba(136,64,255,0.45), 0 8px 24px rgba(0,0,0,0.4)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px) scale(1.03)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 60px rgba(136,64,255,0.6), 0 12px 32px rgba(0,0,0,0.5)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0) scale(1)';
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 40px rgba(136,64,255,0.45), 0 8px 24px rgba(0,0,0,0.4)';
+              }}
+            >
+              Play Game
+            </button>
+          </Link>
         </div>
       </div>
 
-      {/* Play Mode Modal */}
-      <PlayModeModal 
-        isOpen={showPlayModal}
-        onClose={() => setShowPlayModal(false)}
-      />
+      {/* FOOTER LINKS */}
+      <footer
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          width: '100%',
+          padding: '32px 24px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 'clamp(16px, 4vw, 48px)',
+          flexWrap: 'wrap',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.8s ease 0.7s',
+        }}
+      >
+        {[
+          { label: 'ritual.net', href: 'https://ritual.net/' },
+          { label: 'ritualfoundation.org', href: 'https://www.ritualfoundation.org/' },
+          { label: '@ritualnet', href: 'https://x.com/ritualnet' },
+          { label: '@ritualfnd', href: 'https://x.com/ritualfnd' },
+        ].map(link => (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: 'rgba(255,255,255,0.55)',
+              textDecoration: 'none',
+              fontSize: 'clamp(0.8rem, 1.5vw, 0.95rem)',
+              fontWeight: 500,
+              fontFamily: "'Barlow', sans-serif",
+              letterSpacing: '0.02em',
+              transition: 'color 0.2s ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLAnchorElement).style.color = '#40FFAF';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.55)';
+            }}
+          >
+            {link.label}
+          </a>
+        ))}
+      </footer>
     </main>
   );
 }
