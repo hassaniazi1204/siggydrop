@@ -47,8 +47,7 @@ interface GameProps {
   disabled?: boolean;
 }
 
-// Export the game component for tournament mode
-export function MergeGame(props?: GameProps) {
+export default function MergeGame(props?: GameProps) {
   const { 
     tournamentMode = false,
     onScoreChange,
@@ -1544,9 +1543,4 @@ export function MergeGame(props?: GameProps) {
       </div> {/* Close relative z-10 content wrapper (line 921) */}
     </main>
   );
-}
-
-// Page component wrapper for Next.js (no custom props allowed)
-export default function GamePage() {
-  return <MergeGame />;
 }
