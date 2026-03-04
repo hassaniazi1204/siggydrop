@@ -18,13 +18,7 @@ const BALL_CONFIG = [
   { level: 9, radius: 63, image: '/avatars/niraj2.png', color: '#EC4899', score: 90, name: 'niraj', shape: 'circle' as const },
   { level: 10, radius: 73, image: '/avatars/ritual2.png', color: '#F59E0B', score: 100, name: 'ritual', shape: 'circle' as const },
 ];
-// Add to your game page header
-<button
-  onClick={() => router.push('/tournaments')}
-  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold"
->
-  🏆 Tournaments
-</button>
+
 interface Ball {
   body: Matter.Body;
   level: number;
