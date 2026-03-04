@@ -64,7 +64,7 @@ export default function TournamentResults() {
         
         // Find current user's result
         if ((session?.user as any)?.id) {
-          const myData = resultsData.find(r => r.user_id === (session.user as any).id);
+          const myData = resultsData.find(r => r.user_id === (session?.user as any)?.id);
           if (myData) {
             setMyResult(myData);
           }
