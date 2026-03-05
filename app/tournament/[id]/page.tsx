@@ -131,6 +131,9 @@ export default function TournamentLobby() {
 
           if (data) {
             setParticipants(data);
+            
+            // Check for auto-start
+            checkAutoStart(data.length);
           }
         }
       )
@@ -141,6 +144,22 @@ export default function TournamentLobby() {
       supabase.removeChannel(participantsChannel);
     };
   }, [tournamentId]);
+
+  // Auto-start check
+  const checkAutoStart = (participantCount: number) => {
+    if (!tournament) return;
+    
+    if (
+      tournament.auto_start_enabled &&
+      tournament.auto_start_player_count &&
+      participantCount >= tournament.auto_start_player_count &&
+      tournament.status === 'waiting'
+    ) {
+      // Trigger auto-start
+      console.log('Auto-starting tournament...');
+      handleStartTournament();
+    }
+  };
 
   // Handle tournament status changes
   useEffect(() => {
@@ -211,6 +230,40 @@ export default function TournamentLobby() {
     if (tournament) {
       navigator.clipboard.writeText(tournament.tournament_code);
       // Show toast or notification
+    }
+  };
+
+  // Leave tournament
+  const handleLeaveTournament = async () => {
+    if (!session && !localStorage.getItem('guestUserId')) {
+      router.push('/tournaments');
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to leave this tournament?');
+    if (!confirmed) return;
+
+    try {
+      const userId = (session?.user as any)?.id || session?.user?.email || localStorage.getItem('guestUserId');
+
+      const response = await fetch('/api/tournaments/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournament_id: tournamentId,
+          user_id: userId,
+        }),
+      });
+
+      if (response.ok) {
+        router.push('/tournaments');
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to leave tournament');
+      }
+    } catch (error) {
+      console.error('Error leaving tournament:', error);
+      setError('Failed to leave tournament');
     }
   };
 
@@ -379,15 +432,16 @@ export default function TournamentLobby() {
 
         {/* Actions */}
         {tournament.status === 'waiting' && (
-          <div className="text-center">
-            {isCreator ? (
-              <button
-                onClick={handleStartTournament}
-                disabled={participants.length < 2}
-                className={`px-12 py-4 rounded-xl font-black text-xl transition-all ${
-                  participants.length < 2
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105 shadow-lg shadow-green-500/30'
+          <div className="text-center space-y-4">
+            <div className="flex justify-center gap-4">
+              {isCreator ? (
+                <button
+                  onClick={handleStartTournament}
+                  disabled={participants.length < 2}
+                  className={`px-12 py-4 rounded-xl font-black text-xl transition-all ${
+                    participants.length < 2
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105 shadow-lg shadow-green-500/30'
                 }`}
               >
                 {participants.length < 2 ? 'Waiting for Players...' : '🚀 START TOURNAMENT'}
@@ -397,6 +451,15 @@ export default function TournamentLobby() {
                 Waiting for host to start the tournament...
               </div>
             )}
+            </div>
+            
+            {/* Leave Tournament Button - Available to all users */}
+            <button
+              onClick={handleLeaveTournament}
+              className="px-8 py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-xl font-bold transition-colors border-2 border-red-500/30 hover:border-red-500"
+            >
+              ← Leave Tournament
+            </button>
           </div>
         )}
       </div>
