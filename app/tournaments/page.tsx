@@ -71,6 +71,9 @@ export default function TournamentsPage() {
   }, []);
 
   const filteredTournaments = tournaments.filter(t => {
+    // Always hide finished and cancelled tournaments
+    if (t.status === 'finished' || t.status === 'cancelled') return false;
+    
     if (filter === 'all') return true;
     return t.status === filter;
   });
