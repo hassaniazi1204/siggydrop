@@ -43,6 +43,7 @@ interface GameProps {
   onScoreChange?: (score: number) => void;
   onBallDropped?: () => void;
   onMerge?: () => void;
+  onGameOver?: () => void;
   disabled?: boolean;
 }
 
@@ -52,6 +53,7 @@ export default function MergeGame(props?: GameProps) {
     onScoreChange,
     onBallDropped,
     onMerge,
+    onGameOver,
     disabled = false 
   } = props || {};
   
@@ -823,10 +825,16 @@ export default function MergeGame(props?: GameProps) {
           console.log('💀 Game over sound played');
         }
         
+        // Call onGameOver callback for tournament mode
+        if (tournamentMode && onGameOver) {
+          console.log('Tournament mode: Calling onGameOver callback');
+          onGameOver();
+        }
+        
         // Auto-save score to leaderboard - use refs for accuracy
         const finalScore = scoreRef.current;
         const finalUsername = userNameRef.current;
-        console.log('Game Over! Username:', finalUsername, 'Score:', finalScore);
+        console.log('Game Over! Username:', finalUsername, 'Score:', finalScore, 'Tournament Mode:', tournamentMode);
         
         if (finalUsername && finalUsername.trim().length > 0) {
           console.log('Saving to leaderboard...');
@@ -835,7 +843,9 @@ export default function MergeGame(props?: GameProps) {
           console.error('Cannot save: No username found!');
           console.error('userNameRef.current:', userNameRef.current);
           console.error('userName state:', userName);
-          alert('Error: Username not found. Please restart the game.');
+          if (!tournamentMode) {
+            alert('Error: Username not found. Please restart the game.');
+          }
         }
       }
     }, 500);
@@ -1130,7 +1140,14 @@ export default function MergeGame(props?: GameProps) {
 
 
   const saveScoreToLeaderboard = async (username: string, finalScore: number) => {
-    console.log('saveScoreToLeaderboard called with:', { username, finalScore });
+    console.log('saveScoreToLeaderboard called with:', { username, finalScore, tournamentMode });
+    
+    // In tournament mode, don't save to solo leaderboard
+    if (tournamentMode) {
+      console.log('Tournament mode - skipping solo leaderboard save');
+      setSavingScore(false);
+      return;
+    }
     
     try {
       setSavingScore(true);
@@ -1388,7 +1405,11 @@ export default function MergeGame(props?: GameProps) {
         <div className="flex flex-col lg:flex-row items-start justify-center gap-8 lg:gap-20">
         {/* Game Canvas */}
         <div className="flex-shrink-0 order-3 lg:order-1 w-full lg:w-auto">
-          <div className="relative inline-block w-full max-w-[360px] mx-auto lg:mx-0" style={{ overflow: 'visible' }}>
+          <div className="relative inline-block w-full mx-auto lg:mx-0" style={{ 
+            maxWidth: '360px',
+            aspectRatio: '360/800',
+            overflow: 'visible' 
+          }}>
             <canvas
               ref={canvasRef}
               width={gameWidth}
@@ -1401,12 +1422,14 @@ export default function MergeGame(props?: GameProps) {
               className="border-2 border-green-400/20 rounded-2xl cursor-crosshair bg-black shadow-inner"
               style={{ 
                 width: '100%',
+                height: '100%',
                 maxWidth: '360px',
-                height: 'auto',
+                maxHeight: '800px',
                 touchAction: 'none',
                 display: 'block',
                 WebkitTapHighlightColor: 'transparent',
                 userSelect: 'none',
+                objectFit: 'contain',
               }}
             />
             
