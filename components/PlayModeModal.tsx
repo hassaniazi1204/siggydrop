@@ -1,7 +1,7 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 interface PlayModeModalProps {
@@ -11,14 +11,19 @@ interface PlayModeModalProps {
 
 export default function PlayModeModal({ isOpen, onClose }: PlayModeModalProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [guestUsername, setGuestUsername] = useState('')
   const [selectedMode, setSelectedMode] = useState<'solo' | 'tournament' | null>(null)
 
   if (!isOpen) return null
 
-  const tournamentCode = searchParams?.get('code')
-  const isTournamentJoin = !!tournamentCode
+  let tournamentCode: string | null = null
+  let isTournamentJoin = false
+
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    tournamentCode = params.get('code')
+    isTournamentJoin = !!tournamentCode
+  }
 
   const handleGuestPlay = () => {
     if (!guestUsername.trim()) {
