@@ -37,11 +37,51 @@ export default function LiveLeaderboard({
         .from('live_tournament_leaderboards')
         .select('*')
         .eq('tournament_id', tournamentId)
-        .order('rank', { ascending: true })
-        .limit(10);
+        .order('rank', { ascending: true });
 
       if (error) {
         console.error('Leaderboard fetch error:', error);
+        
+        // Fallback: query tournament_scores directly
+        const { data: scoresData, error: scoresError } = await supabase
+          .from('tournament_scores')
+          .select(`
+            user_id,
+            current_score,
+            last_update,
+            tournament_participants!inner(
+              username,
+              profile_image
+            )
+          `)
+          .eq('tournament_id', tournamentId)
+          .order('current_score', { ascending: false });
+
+        if (scoresError) {
+          console.error('Scores fetch error:', scoresError);
+          setLoading(false);
+          return;
+        }
+
+        // Transform to leaderboard format
+        const entries: LeaderboardEntry[] = (scoresData || []).map((entry: any, index: number) => ({
+          rank: index + 1,
+          user_id: entry.user_id || '',
+          username: entry.tournament_participants?.username || 'Unknown',
+          profile_image: entry.tournament_participants?.profile_image || null,
+          current_score: entry.current_score || 0,
+          best_score: entry.current_score || 0,
+          last_update: entry.last_update || new Date().toISOString(),
+        }));
+
+        setLeaderboard(entries);
+
+        if (currentUserId) {
+          const myEntry = entries.find(e => e.user_id === currentUserId);
+          setMyRank(myEntry?.rank || null);
+        }
+
+        setLoading(false);
         return;
       }
 
@@ -74,7 +114,7 @@ export default function LiveLeaderboard({
   // Initial fetch
   useEffect(() => {
     fetchLeaderboard();
-    const interval = setInterval(fetchLeaderboard, 3000); // Refresh every 3 seconds
+    const interval = setInterval(fetchLeaderboard, 1000); // Update every 1 second for real-time feel
     
     return () => clearInterval(interval);
   }, [tournamentId, currentUserId]);
@@ -92,6 +132,7 @@ export default function LiveLeaderboard({
           filter: `tournament_id=eq.${tournamentId}`,
         },
         () => {
+          console.log('Score updated - refreshing leaderboard');
           fetchLeaderboard();
         }
       )
@@ -106,7 +147,7 @@ export default function LiveLeaderboard({
     return (
       <div className="flex items-center justify-center h-full bg-black/40 backdrop-blur-sm rounded-xl p-4">
         <div className="text-white text-center">
-          <div className="text-4xl mb-2">🏆</div>
+          <div className="text-4xl mb-2 animate-pulse">🏆</div>
           <div className="text-sm">Loading leaderboard...</div>
         </div>
       </div>
@@ -120,7 +161,7 @@ export default function LiveLeaderboard({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg sm:text-xl font-black text-white">🏆 LIVE RANKS</h2>
-            <p className="text-xs text-white/80 hidden sm:block">Top 10 Players</p>
+            <p className="text-xs text-white/80 hidden sm:block">Real-time Rankings</p>
           </div>
           {myRank && (
             <div className="bg-white/20 px-3 py-1 rounded-lg">
@@ -136,7 +177,7 @@ export default function LiveLeaderboard({
         {leaderboard.length === 0 ? (
           <div className="text-center text-gray-400 py-8">
             <div className="text-4xl mb-2">👥</div>
-            <p>No scores yet. Be the first!</p>
+            <p className="text-sm">Players will appear here when they start scoring</p>
           </div>
         ) : (
           leaderboard.map((entry) => {
@@ -219,8 +260,11 @@ export default function LiveLeaderboard({
 
       {/* Footer */}
       <div className="bg-gray-900/50 p-2 sm:p-3 text-center border-t border-gray-700">
-        <div className="text-xs text-gray-400">
-          Updates every 3 seconds
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <div className="text-xs text-gray-400">
+            Live • Updates every second
+          </div>
         </div>
       </div>
     </div>
