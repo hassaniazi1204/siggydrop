@@ -17,8 +17,12 @@ function TournamentJoinContent() {
   useEffect(() => {
     const code = searchParams.get('code');
     const isGuest = searchParams.get('guest') === 'true';
+    
+    // Check for pending OAuth tournament join
+    const pendingCode = localStorage.getItem('pendingTournamentJoin');
+    const tournamentCode = code || pendingCode;
 
-    if (!code) {
+    if (!tournamentCode) {
       setError('No tournament code provided');
       setLoading(false);
       return;
@@ -29,7 +33,7 @@ function TournamentJoinContent() {
         const { data: tournament, error: tournamentError } = await supabase
           .from('tournaments')
           .select('*')
-          .eq('tournament_code', code.toUpperCase())
+          .eq('tournament_code', tournamentCode.toUpperCase())
           .single();
 
         if (tournamentError || !tournament) {
@@ -68,13 +72,16 @@ function TournamentJoinContent() {
 
           // Store guest user ID for later use
           localStorage.setItem('guestUserId', guestUserId);
+          
+          // Clear pending join
+          localStorage.removeItem('pendingTournamentJoin');
 
           router.push(`/tournament/${tournament.id}?guest=true&username=${guestUsername}`);
         } else if (session) {
           const response = await fetch('/api/tournaments/join', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tournament_code: code.toUpperCase() }),
+            body: JSON.stringify({ tournament_code: tournamentCode.toUpperCase() }),
           });
 
           const data = await response.json();
@@ -84,11 +91,15 @@ function TournamentJoinContent() {
             setLoading(false);
             return;
           }
+          
+          // Clear pending join
+          localStorage.removeItem('pendingTournamentJoin');
+          localStorage.removeItem('authReturnUrl');
 
           router.push(`/tournament/${tournament.id}`);
         } else {
-          setError('Please sign in to join tournaments');
-          setLoading(false);
+          // Not guest and no session - redirect to play mode modal
+          router.push(`/?code=${tournamentCode}`);
         }
       } catch (err) {
         console.error('Join error:', err);
