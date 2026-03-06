@@ -136,7 +136,7 @@ export default function TournamentResults() {
 
               <div className="text-center">
                 <div className="text-4xl font-black text-purple-400 mb-1">
-                  {myResult.final_score.toLocaleString()}
+                  {myResult?.final_score?.toLocaleString() || 0}
                 </div>
                 <div className="text-sm text-gray-400">Final Score</div>
               </div>
@@ -159,7 +159,7 @@ export default function TournamentResults() {
         )}
 
         {/* Top 3 Podium */}
-        {results.length >= 3 && (
+        {results.length >= 3 && results[0] && results[1] && results[2] && (
           <div className="mb-12 flex justify-center items-end gap-4">
             {/* 2nd Place */}
             <div className="flex flex-col items-center">
@@ -177,7 +177,7 @@ export default function TournamentResults() {
               )}
               <div className="text-white font-bold text-xl mb-1">{results[1].username}</div>
               <div className="text-3xl font-black text-gray-400 mb-2">
-                {results[1].final_score.toLocaleString()}
+                {results[1]?.final_score?.toLocaleString() || 0}
               </div>
               <div className="w-32 h-24 bg-gradient-to-br from-gray-300 to-gray-500 rounded-t-xl flex items-center justify-center">
                 <div className="text-4xl font-black text-white">2</div>
@@ -200,7 +200,7 @@ export default function TournamentResults() {
               )}
               <div className="text-white font-bold text-2xl mb-1">{results[0].username}</div>
               <div className="text-4xl font-black text-yellow-400 mb-2">
-                {results[0].final_score.toLocaleString()}
+                {results[0]?.final_score?.toLocaleString() || 0}
               </div>
               <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-t-xl flex items-center justify-center">
                 <div className="text-5xl font-black text-white">1</div>
@@ -223,7 +223,7 @@ export default function TournamentResults() {
               )}
               <div className="text-white font-bold text-xl mb-1">{results[2].username}</div>
               <div className="text-3xl font-black text-orange-400 mb-2">
-                {results[2].final_score.toLocaleString()}
+                {results[2]?.final_score?.toLocaleString() || 0}
               </div>
               <div className="w-32 h-20 bg-gradient-to-br from-orange-400 to-orange-600 rounded-t-xl flex items-center justify-center">
                 <div className="text-4xl font-black text-white">3</div>
@@ -304,7 +304,7 @@ export default function TournamentResults() {
                       isCurrentUser ? 'text-purple-400' : 
                       isTop3 ? 'text-yellow-400' : 'text-white'
                     }`}>
-                      {result.final_score.toLocaleString()}
+                      {result?.final_score?.toLocaleString() || 0}
                     </div>
                   </div>
                 </div>
