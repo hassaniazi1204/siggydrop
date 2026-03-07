@@ -41,41 +41,95 @@ export default function TournamentResults() {
     if (!tournamentId) return;
 
     const fetchResults = async () => {
-      // Fetch tournament
-      const { data: tournamentData } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('id', tournamentId)
-        .single();
+      try {
+        // Fetch tournament
+        const { data: tournamentData, error: tournamentError } = await supabase
+          .from('tournaments')
+          .select('*')
+          .eq('id', tournamentId)
+          .single();
 
-      if (tournamentData) {
-        setTournament(tournamentData);
-      }
+        if (tournamentError) {
+          console.error('Error fetching tournament:', tournamentError);
+        } else if (tournamentData) {
+          setTournament(tournamentData);
+        }
 
-      // Fetch results
-      const { data: resultsData } = await supabase
-        .from('tournament_results')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .order('rank', { ascending: true });
+        // Fetch final results from tournament_results table
+        const { data: resultsData, error: resultsError } = await supabase
+          .from('tournament_results')
+          .select('*')
+          .eq('tournament_id', tournamentId)
+          .order('rank', { ascending: true });
 
-      if (resultsData) {
-        setResults(resultsData);
-        
-        // Find current user's result
-        if ((session?.user as any)?.id) {
-          const myData = resultsData.find(r => r.user_id === (session?.user as any)?.id);
-          if (myData) {
-            setMyResult(myData);
+        if (resultsError) {
+          console.error('Error fetching results:', resultsError);
+          
+          // Fallback: If tournament_results is empty, fetch from tournament_scores
+          const { data: scoresData, error: scoresError } = await supabase
+            .from('tournament_scores')
+            .select(`
+              user_id,
+              current_score,
+              balls_dropped,
+              merges_completed,
+              game_duration_seconds,
+              tournament_participants!inner(username, profile_image)
+            `)
+            .eq('tournament_id', tournamentId)
+            .order('current_score', { ascending: false });
+
+          if (!scoresError && scoresData) {
+            // Transform to results format
+            const transformedResults = scoresData.map((score: any, index: number) => ({
+              rank: index + 1,
+              user_id: score.user_id,
+              username: score.tournament_participants?.username || 'Unknown',
+              profile_image: score.tournament_participants?.profile_image || null,
+              final_score: score.current_score || 0,
+              balls_dropped: score.balls_dropped || 0,
+              merges_completed: score.merges_completed || 0,
+              total_game_time_seconds: score.game_duration_seconds || 0,
+            }));
+            
+            setResults(transformedResults);
+            
+            // Find current user's result
+            const userId = (session?.user as any)?.id || session?.user?.email;
+            if (userId) {
+              const myData = transformedResults.find(r => r.user_id === userId);
+              if (myData) {
+                setMyResult(myData);
+              }
+            }
+          }
+        } else if (resultsData && resultsData.length > 0) {
+          setResults(resultsData);
+          
+          // Find current user's result
+          const userId = (session?.user as any)?.id || session?.user?.email;
+          if (userId) {
+            const myData = resultsData.find(r => r.user_id === userId);
+            if (myData) {
+              setMyResult(myData);
+            }
           }
         }
-      }
 
-      setLoading(false);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error in fetchResults:', error);
+        setLoading(false);
+      }
     };
 
     fetchResults();
-  }, [tournamentId, session]);
+    
+    // Poll for results every 3 seconds (in case tournament just ended)
+    const interval = setInterval(fetchResults, 3000);
+    
+    return () => clearInterval(interval);
+  }, [tournamentId, session, supabase]);
 
   const getRankColor = (rank: number) => {
     if (rank === 1) return 'from-yellow-400 to-yellow-600';
