@@ -87,7 +87,6 @@ export default function MergeGame(props?: GameProps) {
   const [canDropBall, setCanDropBall] = useState(true);
   const [dropPosition, setDropPosition] = useState(180);
   const [userName, setUserName] = useState('');
-  const [showAuthModal, setShowAuthModal] = useState(false);
  
   
   const [savingScore, setSavingScore] = useState(false);
@@ -127,34 +126,18 @@ export default function MergeGame(props?: GameProps) {
       setUserName(name);
       userNameRef.current = name;
       setUserProfileImage(session.user.image || null);
-      setShowAuthModal(false);
       
       // Start music
       if (backgroundMusicRef.current && !isMuted) {
         backgroundMusicRef.current.play().catch(console.warn);
       }
     } else {
-      // Check for guest username in localStorage
-      const guestUsername = localStorage.getItem('guestUsername');
-      
-      if (guestUsername) {
-        // User is playing as guest
-        setUserName(guestUsername);
-        userNameRef.current = guestUsername;
-        setShowAuthModal(false);
-        
-        // Start music
-        if (backgroundMusicRef.current && !isMuted) {
-          backgroundMusicRef.current.play().catch(console.warn);
-        }
-      } else if (!userName) {
-        // No session and no guest username - show auth modal (only in non-tournament mode)
-        if (!tournamentMode) {
-          setShowAuthModal(true);
-        }
-      }
+      // No session - this shouldn't happen as page-level auth handles it
+      // But just in case, set a placeholder
+      setUserName('Player');
+      userNameRef.current = 'Player';
     }
-  }, [session, status, userName, isMuted, tournamentMode]);
+  }, [session, status, isMuted]);
 
 
   // Handle mute toggle
@@ -1090,11 +1073,6 @@ export default function MergeGame(props?: GameProps) {
     processingMergeRef.current.clear();
     ballIdCounter = 0;
     
-    // Reset user inputs
-    setShowAuthModal(true);
-    setUserName('');
-    userNameRef.current = ''; // Clear username ref
-    
     // Stop background music (will restart when user clicks Start Game again)
     if (backgroundMusicRef.current) {
       backgroundMusicRef.current.pause();
@@ -1113,28 +1091,9 @@ export default function MergeGame(props?: GameProps) {
     }
   };
 
-  const handleGuestLogin = (username: string) => {
-    setUserName(username);
-    userNameRef.current = username;
-    setShowAuthModal(false);
-    
-    // Start music for guest
-    if (backgroundMusicRef.current && !isMuted) {
-      backgroundMusicRef.current.play().catch(console.warn);
-    }
-    };
-
   const handleLogout = async () => {
-    if (session) {
-      // OAuth user - sign out with NextAuth
-      await signOut({ callbackUrl: '/' });
-    } else {
-      // Guest user - just clear state
-      setUserName('');
-      userNameRef.current = '';
-      setUserProfileImage(null);
-      setShowAuthModal(true);
-    }
+    // OAuth user - sign out with NextAuth
+    await signOut({ callbackUrl: '/' });
   };
 
 
@@ -1234,26 +1193,8 @@ export default function MergeGame(props?: GameProps) {
   </div>
 )}
 
-
-      {/* Auth Modal - Show after check completes AND no session */}
-      {showAuthModal && !tournamentMode && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-gray-900 border-2 border-purple-500/30 rounded-2xl p-8 max-w-md">
-            <h2 className="text-3xl font-black text-white mb-4">Sign In Required</h2>
-            <p className="text-gray-400 mb-6">Please sign in to play the game.</p>
-            <button
-              onClick={() => window.location.href = '/'}
-              className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold"
-            >
-              Go to Home
-            </button>
-          </div>
-        </div>
-      )}
-
-
-      {/* Profile Header - Only show when logged in and not in auth modal */}
-      {!showAuthModal && userName && (
+      {/* Profile Header - Always show when userName is set */}
+      {userName && (
   <div className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-md border-b border-purple-500/30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
@@ -1316,7 +1257,7 @@ export default function MergeGame(props?: GameProps) {
       <div className="fixed inset-0 bg-black/40" style={{ zIndex: 0 }}></div>
 
       {/* Content */}
-      <div className={`relative z-10 p-4 md:p-8 ${!showAuthModal && userName ? 'pt-20 md:pt-24' : ''}`}>
+      <div className={`relative z-10 p-4 md:p-8 ${userName ? 'pt-20 md:pt-24' : ''}`}>
         {/* Header */}
         <div className="max-w-7xl mx-auto mb-8">
           <div className="flex justify-between items-center">
