@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         already_joined: true,
+        tournament_id: tournament.id,
         tournament: tournament,
         participant: existingParticipant,
       });
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       already_joined: false,
+      tournament_id: tournament.id,
       tournament: tournament,
       participant: participant,
       participant_count: newParticipantCount,
