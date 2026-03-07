@@ -72,60 +72,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all final scores and create results
+    // Get all scores with participant info
     const { data: scores, error: scoresError } = await supabase
       .from('tournament_scores')
-      .select('*')
+      .select(`
+        user_id,
+        current_score,
+        balls_dropped,
+        merges_completed,
+        game_duration_seconds,
+        tournament_participants!inner(username, profile_image)
+      `)
       .eq('tournament_id', tournament_id)
-      .eq('final_score', true)
-      .order('score', { ascending: false });
+      .order('current_score', { ascending: false });
 
-    if (!scoresError && scores) {
-      // Get participant info
-      const { data: participants } = await supabase
-        .from('tournament_participants')
-        .select('user_id, username, profile_image')
-        .eq('tournament_id', tournament_id);
-
-      const participantMap = new Map(
-        participants?.map(p => [p.user_id, p]) || []
+    if (scoresError) {
+      console.error('Error fetching scores:', scoresError);
+      return NextResponse.json(
+        { error: 'Failed to fetch tournament scores' },
+        { status: 500 }
       );
+    }
 
-      // Create results with rankings
-      const results = scores.map((score, index) => {
-        const participant = participantMap.get(score.user_id);
-        return {
-          tournament_id: tournament_id,
-          user_id: score.user_id,
-          username: participant?.username || 'Unknown',
-          profile_image: participant?.profile_image,
-          final_score: score.score,
-          balls_dropped: score.balls_dropped,
-          merges_completed: score.merges_completed,
-          game_duration_seconds: score.game_duration_seconds,
-          rank: index + 1,
-          validation_flags: score.validation_flags,
-        };
+    if (!scores || scores.length === 0) {
+      console.log('No scores found, returning success anyway');
+      return NextResponse.json({
+        success: true,
+        message: 'Tournament ended (no scores recorded)',
+      });
+    }
+
+    // Create tournament results with rankings
+    const results = scores.map((score: any, index: number) => ({
+      tournament_id: tournament_id,
+      user_id: score.user_id,
+      username: score.tournament_participants?.username || 'Unknown',
+      profile_image: score.tournament_participants?.profile_image || null,
+      rank: index + 1,
+      final_score: score.current_score || 0,
+      balls_dropped: score.balls_dropped || 0,
+      merges_completed: score.merges_completed || 0,
+      total_game_time_seconds: score.game_duration_seconds || 0,
+    }));
+
+    console.log('Creating tournament results:', results);
+
+    // Insert results (upsert to handle duplicates)
+    const { error: resultsError } = await supabase
+      .from('tournament_results')
+      .upsert(results, {
+        onConflict: 'tournament_id,user_id',
+        ignoreDuplicates: false,
       });
 
-      // Insert results (upsert to avoid duplicates)
-      if (results.length > 0) {
-        await supabase
-          .from('tournament_results')
-          .upsert(results, { 
-            onConflict: 'tournament_id,user_id',
-            ignoreDuplicates: false 
-          });
-      }
+    if (resultsError) {
+      console.error('Error creating tournament results:', resultsError);
+      return NextResponse.json(
+        { error: 'Failed to save tournament results' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Tournament ended successfully',
+      results_count: results.length,
+      tournament_id: tournament_id,
     });
 
   } catch (error) {
-    console.error('End tournament error:', error);
+    console.error('Tournament end error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
