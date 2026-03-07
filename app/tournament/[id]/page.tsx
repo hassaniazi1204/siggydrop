@@ -47,9 +47,16 @@ export default function TournamentLobby() {
 
   // Fetch tournament data
   useEffect(() => {
-    if (!tournamentId) return;
+    if (!tournamentId) {
+      console.error('No tournament ID provided');
+      setError('Invalid tournament ID');
+      setLoading(false);
+      return;
+    }
 
     const fetchTournament = async () => {
+      console.log('Fetching tournament:', tournamentId);
+      
       const { data, error } = await supabase
         .from('tournaments')
         .select('*')
@@ -57,7 +64,17 @@ export default function TournamentLobby() {
         .single();
 
       if (error) {
+        console.error('Tournament fetch error:', error);
         setError('Tournament not found');
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
+        setError('Tournament not found');
+        setLoading(false);
+        return;
+      }
         setLoading(false);
         return;
       }
