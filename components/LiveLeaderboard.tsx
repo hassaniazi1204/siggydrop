@@ -15,9 +15,10 @@ interface LeaderboardEntry {
 interface LiveLeaderboardProps {
   tournamentId: string;
   currentUserId?: string;
+  compact?: boolean;
 }
 
-export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLeaderboardProps) {
+export default function LiveLeaderboard({ tournamentId, currentUserId, compact = false }: LiveLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,23 +125,23 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
 
   if (loading) {
     return (
-      <div className="bg-purple-900/30 rounded-lg p-6 border border-purple-500/30">
-        <h3 className="text-xl font-bold text-purple-300 mb-4">Live Leaderboard</h3>
-        <div className="text-center text-gray-400 py-8">Loading...</div>
+      <div className={`bg-purple-900/30 rounded-lg border border-purple-500/30 ${compact ? 'p-3' : 'p-6'}`}>
+        <h3 className={`font-bold text-purple-300 mb-4 ${compact ? 'text-lg' : 'text-xl'}`}>Live Leaderboard</h3>
+        <div className={`text-center text-gray-400 ${compact ? 'py-4 text-sm' : 'py-8'}`}>Loading...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-purple-900/30 rounded-lg p-6 border border-purple-500/30">
-        <h3 className="text-xl font-bold text-purple-300 mb-4">Live Leaderboard</h3>
-        <div className="text-center text-red-400 py-8">
+      <div className={`bg-purple-900/30 rounded-lg border border-purple-500/30 ${compact ? 'p-3' : 'p-6'}`}>
+        <h3 className={`font-bold text-purple-300 mb-4 ${compact ? 'text-lg' : 'text-xl'}`}>Live Leaderboard</h3>
+        <div className={`text-center text-red-400 ${compact ? 'py-4 text-sm' : 'py-8'}`}>
           Error: {error}
           <br />
           <button 
             onClick={fetchLeaderboard}
-            className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded"
+            className={`mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded ${compact ? 'text-sm' : ''}`}
           >
             Retry
           </button>
@@ -151,9 +152,9 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
 
   if (leaderboard.length === 0) {
     return (
-      <div className="bg-purple-900/30 rounded-lg p-6 border border-purple-500/30">
-        <h3 className="text-xl font-bold text-purple-300 mb-4">Live Leaderboard</h3>
-        <div className="text-center text-gray-400 py-8">
+      <div className={`bg-purple-900/30 rounded-lg border border-purple-500/30 ${compact ? 'p-3' : 'p-6'}`}>
+        <h3 className={`font-bold text-purple-300 mb-4 ${compact ? 'text-lg' : 'text-xl'}`}>Live Leaderboard</h3>
+        <div className={`text-center text-gray-400 ${compact ? 'py-4 text-sm' : 'py-8'}`}>
           Waiting for players to start...
         </div>
       </div>
@@ -161,18 +162,19 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
   }
 
   return (
-    <div className="bg-purple-900/30 rounded-lg p-6 border border-purple-500/30">
-      <h3 className="text-xl font-bold text-purple-300 mb-4 flex items-center gap-2">
+    <div className={`bg-purple-900/30 rounded-lg border border-purple-500/30 ${compact ? 'p-3' : 'p-6'}`}>
+      <h3 className={`font-bold text-purple-300 mb-4 flex items-center gap-2 ${compact ? 'text-lg' : 'text-xl'}`}>
         <span className="animate-pulse">🔴</span>
         Live Leaderboard
       </h3>
       
-      <div className="space-y-2">
+      <div className={compact ? 'space-y-1' : 'space-y-2'}>
         {leaderboard.map((entry, index) => (
           <div
             key={entry.user_id}
             className={`
-              flex items-center gap-3 p-3 rounded-lg transition-all
+              flex items-center gap-3 rounded-lg transition-all
+              ${compact ? 'p-2' : 'p-3'}
               ${entry.user_id === currentUserId 
                 ? 'bg-purple-600/40 border border-purple-400' 
                 : 'bg-purple-800/20'
@@ -181,7 +183,8 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
           >
             {/* Rank */}
             <div className={`
-              w-8 h-8 rounded-full flex items-center justify-center font-bold
+              rounded-full flex items-center justify-center font-bold
+              ${compact ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'}
               ${index === 0 ? 'bg-yellow-500 text-black' : 
                 index === 1 ? 'bg-gray-300 text-black' :
                 index === 2 ? 'bg-amber-600 text-white' :
@@ -195,19 +198,19 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
               <Image
                 src={entry.profile_image}
                 alt={entry.username}
-                width={32}
-                height={32}
+                width={compact ? 24 : 32}
+                height={compact ? 24 : 32}
                 className="rounded-full"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold">
+              <div className={`rounded-full bg-purple-600 flex items-center justify-center text-white font-bold ${compact ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'}`}>
                 {entry.username.charAt(0).toUpperCase()}
               </div>
             )}
 
             {/* Username */}
             <div className="flex-1 min-w-0">
-              <div className="text-white font-medium truncate">
+              <div className={`text-white font-medium truncate ${compact ? 'text-sm' : 'text-base'}`}>
                 {entry.username}
                 {entry.user_id === currentUserId && (
                   <span className="ml-2 text-xs text-purple-300">(You)</span>
@@ -216,7 +219,7 @@ export default function LiveLeaderboard({ tournamentId, currentUserId }: LiveLea
             </div>
 
             {/* Score */}
-            <div className="text-xl font-bold text-purple-200">
+            <div className={`font-bold text-purple-200 ${compact ? 'text-base' : 'text-xl'}`}>
               {entry.current_score.toLocaleString()}
             </div>
           </div>
