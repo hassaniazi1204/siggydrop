@@ -125,16 +125,17 @@ export default function TournamentGamePage() {
   }, [gameStarted, gameEnded, currentScore]);
 
   // Submit score to server
-  const submitScore = async (isFinal: boolean) => {
-    if (!session || !tournamentId) return;
+  const submitScore = async (isFinal: boolean): Promise<number> => {
+    if (!session || !tournamentId) return currentScore;
 
     const now = Date.now();
     if (!isFinal && now - lastScoreSubmission.current < 2000) {
-      return;
+      return currentScore;
     }
     lastScoreSubmission.current = now;
 
     const gameDuration = Math.floor((now - gameMetrics.current.game_start_time) / 1000);
+    const scoreToSubmit = currentScore;
 
     try {
       await fetch('/api/tournaments/submit-score', {
@@ -142,7 +143,7 @@ export default function TournamentGamePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: tournamentId,
-          score: currentScore,
+          score: scoreToSubmit,
           final_score: isFinal,
           game_metrics: {
             balls_dropped: gameMetrics.current.balls_dropped,
@@ -154,6 +155,8 @@ export default function TournamentGamePage() {
     } catch (error) {
       console.error('Error submitting score:', error);
     }
+    
+    return scoreToSubmit;
   };
 
   // Handle game end (player finishes early)
@@ -161,7 +164,7 @@ export default function TournamentGamePage() {
     if (gameEnded) return;
     
     setGameEnded(true);
-    await submitScore(true);
+    const submittedScore = await submitScore(true);
     
     // If time expired for everyone, redirect to results
     if (timeExpired || timeRemaining <= 0) {
@@ -171,7 +174,8 @@ export default function TournamentGamePage() {
     } else {
       // Player finished early - show waiting screen
       setPlayerFinished(true);
-      setFinalScore(currentScore);
+      // Use the score that was just submitted, not currentScore state
+      setFinalScore(submittedScore || currentScore);
       
       // Get username
       const username = (session?.user as any)?.name || 
