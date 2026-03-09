@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import Image from 'next/image';
 
 interface LeaderboardEntry {
   user_id: string;
   username: string;
-  profile_image: string | null;
   current_score: number;
   last_update: string;
 }
@@ -50,10 +48,10 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
 
       console.log('✅ Fetched scores:', scores);
 
-      // STEP 2: Get participant details
+      // STEP 2: Get participant details (username only, no images)
       const { data: participants, error: participantsError } = await supabase
         .from('tournament_participants')
-        .select('user_id, username, profile_image')
+        .select('user_id, username')
         .eq('tournament_id', tournamentId);
 
       if (participantsError) {
@@ -73,7 +71,6 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
         return {
           user_id: score.user_id,
           username: participant?.username || 'Unknown Player',
-          profile_image: participant?.profile_image || null,
           current_score: score.current_score,
           last_update: score.last_update
         };
@@ -90,16 +87,12 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
     }
   };
 
-  // Subscribe to real-time updates
   useEffect(() => {
-    console.log('🔄 Setting up real-time subscription for tournament:', tournamentId);
-
-    // Initial fetch
     fetchLeaderboard();
 
-    // Subscribe to changes
+    // Subscribe to real-time updates
     const channel = supabase
-      .channel(`leaderboard-${tournamentId}`)
+      .channel(`tournament_scores_${tournamentId}`)
       .on(
         'postgres_changes',
         {
@@ -109,8 +102,8 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
           filter: `tournament_id=eq.${tournamentId}`
         },
         (payload) => {
-          console.log('📡 Real-time update received:', payload);
-          fetchLeaderboard(); // Refetch on any change
+          console.log('🔄 Real-time update received:', payload);
+          fetchLeaderboard(); // Re-fetch on any change
         }
       )
       .subscribe((status) => {
@@ -118,7 +111,7 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
       });
 
     return () => {
-      console.log('🔌 Cleaning up real-time subscription');
+      console.log('🔌 Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [tournamentId]);
@@ -127,7 +120,10 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
     return (
       <div className={`bg-purple-900/30 rounded-lg border border-purple-500/30 ${compact ? 'p-3' : 'p-6'}`}>
         <h3 className={`font-bold text-purple-300 mb-4 ${compact ? 'text-lg' : 'text-xl'}`}>Live Leaderboard</h3>
-        <div className={`text-center text-gray-400 ${compact ? 'py-4 text-sm' : 'py-8'}`}>Loading...</div>
+        <div className={`text-center text-gray-400 ${compact ? 'py-4' : 'py-8'}`}>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto"></div>
+          <p className={`mt-2 ${compact ? 'text-sm' : ''}`}>Loading leaderboard...</p>
+        </div>
       </div>
     );
   }
@@ -193,20 +189,10 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
               {index + 1}
             </div>
 
-            {/* Profile Image */}
-            {entry.profile_image ? (
-              <Image
-                src={entry.profile_image}
-                alt={entry.username}
-                width={compact ? 24 : 32}
-                height={compact ? 24 : 32}
-                className="rounded-full"
-              />
-            ) : (
-              <div className={`rounded-full bg-purple-600 flex items-center justify-center text-white font-bold ${compact ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'}`}>
-                {entry.username.charAt(0).toUpperCase()}
-              </div>
-            )}
+            {/* Avatar Initial (no images) */}
+            <div className={`rounded-full bg-purple-600 flex items-center justify-center text-white font-bold ${compact ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'}`}>
+              {entry.username.charAt(0).toUpperCase()}
+            </div>
 
             {/* Username */}
             <div className="flex-1 min-w-0">
