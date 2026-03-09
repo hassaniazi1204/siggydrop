@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('Starting tournament:', tournament_id, 'User:', userId);
+
     // Get tournament
     const { data: tournament, error: tournamentError } = await supabase
       .from('tournaments')
@@ -41,6 +43,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (tournamentError || !tournament) {
+      console.error('Tournament not found:', tournamentError);
       return NextResponse.json(
         { error: 'Tournament not found' },
         { status: 404 }
@@ -76,18 +79,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate start and end times
-    const now = new Date();
-    const actual_start_time = new Date(now.getTime() + 5000); // Start in 5 seconds (countdown)
-    const end_time = new Date(actual_start_time.getTime() + tournament.duration_minutes * 60 * 1000);
+    console.log('Starting tournament with', participantCount, 'participants');
 
-    // Update tournament status to 'starting' (5-second countdown)
+    // Update tournament status to 'active' and set started_at
     const { data: updatedTournament, error: updateError } = await supabase
       .from('tournaments')
       .update({
-        status: 'starting',
-        actual_start_time: actual_start_time.toISOString(),
-        end_time: end_time.toISOString(),
+        status: 'active',
+        started_at: new Date().toISOString(),
       })
       .eq('id', tournament_id)
       .select()
@@ -96,28 +95,28 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       console.error('Error starting tournament:', updateError);
       return NextResponse.json(
-        { error: 'Failed to start tournament' },
+        { error: 'Failed to start tournament', details: updateError.message },
         { status: 500 }
       );
     }
 
+    console.log('Tournament status updated to active');
+
     // Create initial leaderboard entries for all participants with score 0
-    // This ensures the leaderboard shows all players immediately
     const { data: participants, error: participantsError } = await supabase
       .from('tournament_participants')
-      .select('user_id, username')
+      .select('user_id')
       .eq('tournament_id', tournament_id);
 
     if (!participantsError && participants) {
-      // Insert initial scores for all participants
+      // Insert initial scores for all participants (only fields that exist in new schema)
       const initialScores = participants.map(p => ({
         tournament_id: tournament_id,
         user_id: p.user_id,
         current_score: 0,
-        best_score: 0,
-        game_duration_seconds: 0,
         balls_dropped: 0,
         merges_completed: 0,
+        game_duration_seconds: 0,
         last_update: new Date().toISOString(),
       }));
 
@@ -136,62 +135,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // The status will automatically change from 'starting' to 'active' after 5 seconds
-    // This will be handled by the frontend or a separate cron job
-    // For now, we'll schedule it with a setTimeout equivalent via database trigger
-    // or let the frontend handle it when countdown reaches 0
-
     return NextResponse.json({
       success: true,
       tournament: {
         id: updatedTournament.id,
         status: updatedTournament.status,
-        actual_start_time: updatedTournament.actual_start_time,
-        end_time: updatedTournament.end_time,
-        duration_minutes: updatedTournament.duration_minutes,
+        started_at: updatedTournament.started_at,
+        max_players: updatedTournament.max_players,
       },
-      countdown_seconds: 5,
       participant_count: participantCount,
     });
 
   } catch (error) {
     console.error('Tournament start error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
-  }
-}
-
-// Helper endpoint to actually activate tournament after countdown
-export async function PATCH(request: NextRequest) {
-  try {
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
-
-    const body = await request.json();
-    const { tournament_id } = body;
-
-    // Update status from 'starting' to 'active'
-    const { data: tournament, error } = await supabase
-      .from('tournaments')
-      .update({ status: 'active' })
-      .eq('id', tournament_id)
-      .eq('status', 'starting') // Only update if still in starting state
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      tournament: tournament,
-    });
-
-  } catch (error) {
-    console.error('Tournament activation error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
