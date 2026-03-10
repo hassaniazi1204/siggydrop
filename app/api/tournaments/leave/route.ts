@@ -2,78 +2,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/auth-options';
+
+async function resolveUserId(supabase: any, session: any): Promise<string | null> {
+  const nextauthId = (session.user as any).id || session.user.email;
+  const { data } = await supabase.from('users').select('id').eq('nextauth_id', nextauthId).single();
+  return data?.id ?? null;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
+    const userId = await resolveUserId(supabase, session);
+    if (!userId) return NextResponse.json({ error: 'User not found' }, { status: 401 });
 
-    // Parse request body
-    const body = await request.json();
-    const { tournament_id, user_id } = body;
+    const { tournament_id } = await request.json();
+    if (!tournament_id) return NextResponse.json({ error: 'tournament_id required' }, { status: 400 });
 
-    if (!tournament_id || !user_id) {
-      return NextResponse.json(
-        { error: 'Tournament ID and User ID are required' },
-        { status: 400 }
-      );
-    }
+    const { data: tournament } = await supabase.from('tournaments').select('status, created_by').eq('id', tournament_id).single();
+    if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    if (['active', 'finished'].includes(tournament.status)) return NextResponse.json({ error: 'Cannot leave after tournament started' }, { status: 400 });
+    if (tournament.created_by === userId) return NextResponse.json({ error: 'Creator cannot leave — cancel instead' }, { status: 400 });
 
-    // Get tournament to check status
-    const { data: tournament, error: tournamentError } = await supabase
-      .from('tournaments')
-      .select('status, created_by')
-      .eq('id', tournament_id)
-      .single();
-
-    if (tournamentError || !tournament) {
-      return NextResponse.json(
-        { error: 'Tournament not found' },
-        { status: 404 }
-      );
-    }
-
-    // Don't allow leaving if tournament has started
-    if (tournament.status === 'active' || tournament.status === 'finished') {
-      return NextResponse.json(
-        { error: 'Cannot leave tournament that has already started' },
-        { status: 400 }
-      );
-    }
-
-    // Don't allow creator to leave (they should cancel instead)
-    if (tournament.created_by === user_id) {
-      return NextResponse.json(
-        { error: 'Tournament creator cannot leave. Please cancel the tournament instead.' },
-        { status: 400 }
-      );
-    }
-
-    // Remove participant
-    const { error: deleteError } = await supabase
-      .from('tournament_participants')
-      .delete()
-      .eq('tournament_id', tournament_id)
-      .eq('user_id', user_id);
-
-    if (deleteError) {
-      console.error('Error removing participant:', deleteError);
-      return NextResponse.json(
-        { error: 'Failed to leave tournament' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Successfully left tournament',
-    });
-
-  } catch (error) {
-    console.error('Leave tournament error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    await supabase.from('tournament_participants').delete().eq('tournament_id', tournament_id).eq('user_id', userId);
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
