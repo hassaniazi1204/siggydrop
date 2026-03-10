@@ -7,6 +7,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/auth-options';
 
 async function resolveUserId(supabase: any, session: any): Promise<string | null> {
   const nextauthId = (session.user as any).id || session.user.email;
+  if (!nextauthId) return null;
   const { data } = await supabase.from('users').select('id').eq('nextauth_id', nextauthId).single();
   return data?.id ?? null;
 }
