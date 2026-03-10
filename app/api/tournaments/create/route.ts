@@ -12,17 +12,20 @@ function generateCode(): string {
 
 async function resolveUserId(supabase: any, session: any): Promise<string | null> {
   const nextauthId = (session.user as any).id || session.user.email;
-  const username   = session.user.name || session.user.email?.split('@')[0] || 'Player';
-  const { data, error } = await supabase
+  if (!nextauthId) return null;
+  const username = session.user.name || session.user.email?.split('@')[0] || 'Player';
+
+  const { data: existing } = await supabase
+    .from('users').select('id').eq('nextauth_id', nextauthId).single();
+  if (existing) return existing.id;
+
+  const { data: created, error } = await supabase
     .from('users')
-    .upsert(
-      { nextauth_id: nextauthId, username, email: session.user.email, avatar: session.user.image },
-      { onConflict: 'nextauth_id' }
-    )
-    .select('id')
-    .single();
-  if (error || !data) { console.error('resolveUserId:', error); return null; }
-  return data.id;
+    .insert({ nextauth_id: nextauthId, username, email: session.user.email, avatar: session.user.image })
+    .select('id').single();
+
+  if (error) { console.error('Failed to create user:', error); return null; }
+  return created.id;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,7 +39,8 @@ export async function POST(request: NextRequest) {
     const userId = await resolveUserId(supabase, session);
     if (!userId) return NextResponse.json({ error: 'Failed to resolve user' }, { status: 500 });
 
-    const { max_players = 10 } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { max_players = 10 } = body;
 
     // Generate unique code
     let tournament_code = '';
@@ -50,20 +54,17 @@ export async function POST(request: NextRequest) {
     const { data: tournament, error } = await supabase
       .from('tournaments')
       .insert({ tournament_code, created_by: userId, max_players, status: 'waiting' })
-      .select()
-      .single();
+      .select().single();
 
     if (error || !tournament) return NextResponse.json({ error: 'Failed to create tournament', details: error?.message }, { status: 500 });
 
-    // Add creator as first participant
     await supabase.from('tournament_participants').insert({
-      tournament_id: tournament.id,
-      user_id: userId,
-      status: 'joined',
+      tournament_id: tournament.id, user_id: userId, status: 'joined',
     });
 
     return NextResponse.json({ success: true, tournament });
   } catch (err: any) {
+    console.error('Create tournament error:', err);
     return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 });
   }
 }
