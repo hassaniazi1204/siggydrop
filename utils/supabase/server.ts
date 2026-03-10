@@ -1,17 +1,19 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+// utils/supabase/server.ts
+// SERVICE ROLE key — bypasses RLS for secure server-side writes.
+// ONLY used in API routes (server-side). Never exposed to the browser.
+// Client-side components use utils/supabase/client.ts (anon key, READ only).
 
-export function createClient(cookieStore: ReturnType<typeof cookies>) {
-  return createServerClient(
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+export function createClient(_cookieStore?: any) {
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );
 }
-
