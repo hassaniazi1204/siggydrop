@@ -1,62 +1,56 @@
+// app/api/tournaments/[id]/leaderboard/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const tournamentId = params.id;
 
-    // Get tournament
-    const { data: tournament, error: tournamentError } = await supabase
+    const { data: tournament } = await supabase
       .from('tournaments')
-      .select('*')
+      .select('id, tournament_code, status, started_at, ended_at')
       .eq('id', tournamentId)
       .single();
 
-    if (tournamentError || !tournament) {
-      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+
+    // Finished: serve from tournament_results (rank baked in, username snapshotted)
+    if (tournament.status === 'finished') {
+      const { data: results } = await supabase
+        .from('tournament_results')
+        .select('user_id, username, rank, final_score, balls_dropped, merges_completed, game_duration_seconds')
+        .eq('tournament_id', tournamentId)
+        .order('rank', { ascending: true });
+      return NextResponse.json({ success: true, tournament, leaderboard: results || [], is_final: true });
     }
 
-    // Get leaderboard using optimized query
-    const { data: leaderboard, error: leaderboardError } = await supabase
-      .from('live_tournament_leaderboards')
-      .select('*')
+    // Active/waiting: serve live scores with username joined from users (uuid FK — direct join)
+    const { data: scores } = await supabase
+      .from('tournament_scores')
+      .select(`
+        user_id,
+        score,
+        finished,
+        last_update,
+        users ( username )
+      `)
       .eq('tournament_id', tournamentId)
-      .limit(100);
+      .order('score', { ascending: false });
 
-    if (leaderboardError) {
-      console.error('Leaderboard error:', leaderboardError);
-      return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 });
-    }
+    const leaderboard = (scores || []).map((s: any, i: number) => ({
+      user_id:     s.user_id,
+      username:    s.users?.username || 'Unknown',
+      rank:        i + 1,
+      score:       s.score,
+      finished:    s.finished,
+      last_update: s.last_update,
+    }));
 
-    // Get current user's rank if authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    let myRank = null;
-    
-    if (user) {
-      const myEntry = leaderboard?.find((entry: any) => entry.user_id === user.id);
-      myRank = myEntry?.rank || null;
-    }
-
-    return NextResponse.json({
-      success: true,
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        end_time: tournament.end_time,
-      },
-      leaderboard: leaderboard || [],
-      my_rank: myRank,
-    });
-
-  } catch (error) {
-    console.error('Leaderboard fetch error:', error);
+    return NextResponse.json({ success: true, tournament, leaderboard, is_final: false });
+  } catch (err) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
