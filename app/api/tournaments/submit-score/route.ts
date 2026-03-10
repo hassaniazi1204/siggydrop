@@ -5,11 +5,12 @@ import { cookies } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/auth-options';
 
-const MAX_SCORE_PER_BALL       = 5000;
+const MAX_SCORE_PER_BALL        = 5000;
 const MAX_GAME_DURATION_SECONDS = 600;
 
 async function resolveUserId(supabase: any, session: any): Promise<string | null> {
   const nextauthId = (session.user as any).id || session.user.email;
+  if (!nextauthId) return null;
   const { data } = await supabase.from('users').select('id').eq('nextauth_id', nextauthId).single();
   return data?.id ?? null;
 }
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(cookieStore);
 
     const userId = await resolveUserId(supabase, session);
-    if (!userId) return NextResponse.json({ error: 'User not found' }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: 'Failed to resolve user' }, { status: 500 });
 
     const { tournament_id, score, is_final = false, game_metrics = {} } = await request.json();
 
@@ -32,7 +33,6 @@ export async function POST(request: NextRequest) {
 
     const { balls_dropped = 0, merges_completed = 0, game_duration_seconds = 0 } = game_metrics;
 
-    // ── Anti-cheat ────────────────────────────────────────────────────────────
     if (merges_completed > balls_dropped && balls_dropped > 0)
       return NextResponse.json({ error: 'Invalid game metrics' }, { status: 400 });
     if (balls_dropped > 0 && score > balls_dropped * MAX_SCORE_PER_BALL)
@@ -40,30 +40,20 @@ export async function POST(request: NextRequest) {
     if (game_duration_seconds > MAX_GAME_DURATION_SECONDS)
       return NextResponse.json({ error: 'Game duration exceeds maximum' }, { status: 400 });
 
-    // Verify tournament is active
     const { data: tournament } = await supabase.from('tournaments').select('status').eq('id', tournament_id).single();
     if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     if (tournament.status !== 'active') return NextResponse.json({ error: 'Tournament is not active' }, { status: 400 });
 
-    // Upsert score
     await supabase.from('tournament_scores').upsert({
-      tournament_id,
-      user_id: userId,
-      score,
-      balls_dropped,
-      merges_completed,
-      game_duration_seconds,
-      finished: is_final,
+      tournament_id, user_id: userId, score, balls_dropped,
+      merges_completed, game_duration_seconds, finished: is_final,
       last_update: new Date().toISOString(),
     }, { onConflict: 'tournament_id,user_id' });
 
-    // Update participant status
     await supabase.from('tournament_participants')
       .update({ status: is_final ? 'finished' : 'playing', game_ended_at: is_final ? new Date().toISOString() : null })
-      .eq('tournament_id', tournament_id)
-      .eq('user_id', userId);
+      .eq('tournament_id', tournament_id).eq('user_id', userId);
 
-    // Auto-end if all players finished
     if (is_final) {
       const { count: total }    = await supabase.from('tournament_scores').select('*', { count: 'exact', head: true }).eq('tournament_id', tournament_id);
       const { count: finished } = await supabase.from('tournament_scores').select('*', { count: 'exact', head: true }).eq('tournament_id', tournament_id).eq('finished', true);
