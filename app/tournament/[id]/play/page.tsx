@@ -1,6 +1,7 @@
 'use client';
+// ChatGPT Steps 3+4: timer derived from end_time, auto-redirect when finished
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useSession } from 'next-auth/react';
@@ -14,76 +15,91 @@ export default function TournamentGamePage() {
   const { data: session } = useSession();
   const supabase = createClient();
 
-  const [tournament, setTournament] = useState<any>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [currentScore, setCurrentScore] = useState(0);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
+  const [tournament, setTournament]         = useState<any>(null);
+  const [timeRemaining, setTimeRemaining]   = useState<number>(0);
+  const [currentScore, setCurrentScore]     = useState(0);
+  const [gameStarted, setGameStarted]       = useState(false);
+  const [gameEnded, setGameEnded]           = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(true);
   const [playerFinished, setPlayerFinished] = useState(false);
-  const [finalScore, setFinalScore] = useState(0);
+  const [finalScore, setFinalScore]         = useState(0);
   const [playerUsername, setPlayerUsername] = useState('');
-  // currentUserDbId resolved from /api/user/me so LiveLeaderboard can highlight correctly
   const [currentUserDbId, setCurrentUserDbId] = useState<string | null>(null);
 
-  const gameMetrics = useRef({ balls_dropped: 0, merges_completed: 0, game_start_time: 0 });
-  const lastScoreSubmission = useRef(0);
-  const tournamentId = params.id as string;
+  const gameMetrics     = useRef({ balls_dropped: 0, merges_completed: 0, game_start_time: 0 });
+  const lastSubmit      = useRef(0);
+  const endTimeRef      = useRef<number | null>(null);
+  const gameEndedRef    = useRef(false);
+  const tournamentId    = params.id as string;
 
-  // Resolve DB uuid once on mount
+  // Resolve DB uuid
   useEffect(() => {
     fetch('/api/user/me').then(r => r.json()).then(d => { if (d.id) setCurrentUserDbId(d.id); });
   }, []);
 
+  // Load tournament — derive timer from end_time
   useEffect(() => {
     if (!tournamentId) return;
     supabase.from('tournaments').select('*').eq('id', tournamentId).single()
       .then(({ data }) => {
-        if (data) {
-          setTournament(data);
-          if (data.started_at) {
-            // Calculate remaining time from started_at + duration
-            // Duration is not stored — default to 10 min if not set
-            const durationMs = (data.duration_minutes || 10) * 60 * 1000;
-            const endTime = new Date(data.started_at).getTime() + durationMs;
-            const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-            setTimeRemaining(remaining);
-          }
+        if (!data) return;
+        setTournament(data);
+        if (data.end_time) {
+          endTimeRef.current = new Date(data.end_time).getTime();
+          const remaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
+          setTimeRemaining(remaining);
         }
       });
   }, [tournamentId]);
 
+  // ChatGPT Step 4: timer counts down from end_time every second
   useEffect(() => {
-    if (timeRemaining <= 0 || gameEnded) return;
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) { handleGameEnd(true); return 0; }
-        return prev - 1;
-      });
+    if (!tournament || gameEnded) return;
+    const iv = setInterval(() => {
+      if (!endTimeRef.current) return;
+      const remaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
+      setTimeRemaining(remaining);
+      if (remaining === 0 && !gameEndedRef.current) handleGameEnd(true);
     }, 1000);
-    return () => clearInterval(interval);
-  }, [timeRemaining, gameEnded]);
+    return () => clearInterval(iv);
+  }, [tournament, gameEnded]);
 
+  // Realtime: redirect all players when tournament finishes
+  useEffect(() => {
+    if (!tournamentId) return;
+    const ch = supabase.channel(`t-status:${tournamentId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'tournaments',
+        filter: `id=eq.${tournamentId}`,
+      }, (payload) => {
+        if ((payload.new as any).status === 'finished') {
+          setTimeout(() => router.push(`/tournament/${tournamentId}/results`), 1500);
+        }
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [tournamentId]);
+
+  // Start game
   useEffect(() => {
     if (!tournament || gameStarted) return;
     if (tournament.status === 'active') {
       setGameStarted(true);
       gameMetrics.current.game_start_time = Date.now();
-      // Update participant status — service role handles this server-side on score submit
     }
   }, [tournament?.status, gameStarted]);
 
+  // Periodic score submission every 10s
   useEffect(() => {
-    if (!gameStarted || gameEnded || currentScore === 0) return;
-    const interval = setInterval(() => submitScore(false), 10000);
-    return () => clearInterval(interval);
+    if (!gameStarted || gameEnded) return;
+    const iv = setInterval(() => submitScore(false), 10000);
+    return () => clearInterval(iv);
   }, [gameStarted, gameEnded, currentScore]);
 
   const submitScore = async (isFinal: boolean): Promise<number> => {
     if (!session || !tournamentId) return currentScore;
     const now = Date.now();
-    if (!isFinal && now - lastScoreSubmission.current < 2000) return currentScore;
-    lastScoreSubmission.current = now;
+    if (!isFinal && now - lastSubmit.current < 2000) return currentScore;
+    lastSubmit.current = now;
 
     const gameDuration = Math.floor((now - gameMetrics.current.game_start_time) / 1000);
     const scoreToSubmit = currentScore;
@@ -94,42 +110,42 @@ export default function TournamentGamePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: tournamentId,
-          score: scoreToSubmit,
-          is_final: isFinal,   // ← correct field name
+          score:         scoreToSubmit,
+          is_final:      isFinal,
           game_metrics: {
-            balls_dropped: gameMetrics.current.balls_dropped,
-            merges_completed: gameMetrics.current.merges_completed,
+            balls_dropped:         gameMetrics.current.balls_dropped,
+            merges_completed:      gameMetrics.current.merges_completed,
             game_duration_seconds: gameDuration,
           },
         }),
       });
     } catch (err) { console.error('Score submit error:', err); }
-
     return scoreToSubmit;
   };
 
   const handleGameEnd = async (timeExpired: boolean) => {
-    if (gameEnded) return;
+    if (gameEndedRef.current) return;
+    gameEndedRef.current = true;
     setGameEnded(true);
-    const submittedScore = await submitScore(true);
+    const submitted = await submitScore(true);
 
-    if (timeExpired || timeRemaining <= 0) {
+    if (timeExpired) {
       setTimeout(() => router.push(`/tournament/${tournamentId}/results`), 3000);
     } else {
       setPlayerFinished(true);
-      setFinalScore(submittedScore || currentScore);
+      setFinalScore(submitted || currentScore);
       setPlayerUsername(session?.user?.name || session?.user?.email?.split('@')[0] || 'Player');
     }
   };
 
   const handleEndTournament = async () => {
     if (!window.confirm('End this tournament now?')) return;
-    const r = await fetch('/api/tournaments/end', {
+    await fetch('/api/tournaments/end', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tournament_id: tournamentId }),
     });
-    if (r.ok) router.push(`/tournament/${tournamentId}/results`);
+    router.push(`/tournament/${tournamentId}/results`);
   };
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
@@ -156,17 +172,24 @@ export default function TournamentGamePage() {
         </div>
       )}
 
+      {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur-md border-b border-purple-500/30">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className={`px-6 py-3 rounded-xl font-mono text-3xl font-black ${timeRemaining <= 60 ? 'bg-red-500/20 text-red-400 animate-pulse' : timeRemaining <= 300 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
-            ⏱️ {formatTime(timeRemaining)}
-          </div>
-          <div className="text-3xl font-black text-purple-400">{currentScore.toLocaleString()}</div>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <div className={`px-4 py-2 rounded-xl font-mono text-2xl font-black ${
+            timeRemaining <= 60  ? 'bg-red-500/20 text-red-400 animate-pulse' :
+            timeRemaining <= 300 ? 'bg-yellow-500/20 text-yellow-400' :
+                                   'bg-green-500/20 text-green-400'
+          }`}>⏱️ {formatTime(timeRemaining)}</div>
+
+          <div className="text-2xl font-black text-purple-400">{currentScore.toLocaleString()}</div>
+
           <div className="flex gap-2">
-            <button onClick={() => setShowLeaderboard(!showLeaderboard)} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold text-sm">
+            <button onClick={() => setShowLeaderboard(s => !s)}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold text-sm">
               {showLeaderboard ? 'Hide' : 'Show'} Ranks
             </button>
-            <button onClick={handleEndTournament} className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg font-bold text-sm border border-red-500/30">
+            <button onClick={handleEndTournament}
+              className="px-3 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg font-bold text-sm border border-red-500/30">
               🛑 End
             </button>
           </div>
@@ -174,7 +197,7 @@ export default function TournamentGamePage() {
       </div>
 
       <div className="pt-20 h-screen flex">
-        <div className={`flex-1 ${showLeaderboard ? 'sm:w-2/3' : 'w-full'} overflow-hidden`}>
+        <div className={`flex-1 overflow-hidden ${showLeaderboard ? 'sm:w-2/3' : 'w-full'}`}>
           <div className="h-full flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-purple-900">
             <MergeGame
               tournamentMode={true}
