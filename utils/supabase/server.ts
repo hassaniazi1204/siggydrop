@@ -1,19 +1,28 @@
 // utils/supabase/server.ts
-// SERVICE ROLE key — bypasses RLS for secure server-side writes.
-// ONLY used in API routes (server-side). Never exposed to the browser.
-// Client-side components use utils/supabase/client.ts (anon key, READ only).
+// Pure supabase-js with SERVICE ROLE key.
+// Per Supabase docs: never use the SSR client with service role —
+// cookies override the Authorization header.
+// This file is ONLY imported by API routes (server-side).
 
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as _createClient } from '@supabase/supabase-js';
 
 export function createClient(_cookieStore?: any) {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      `Supabase env vars missing. ` +
+      `URL: ${url ? 'OK' : 'MISSING'}, ` +
+      `SERVICE_ROLE_KEY: ${key ? 'OK' : 'MISSING'}`
+    );
+  }
+
+  return _createClient(url, key, {
+    auth: {
+      autoRefreshToken:  false,
+      persistSession:    false,
+      detectSessionInUrl: false,
+    },
+  });
 }
