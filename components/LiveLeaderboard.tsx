@@ -195,7 +195,6 @@ export default function LiveLeaderboard({ tournamentId, currentUserId, compact =
                 <motion.div
                   key={entry.user_id}
                   layout                          // ← This is the magic: Framer re-positions
-                  layoutId={entry.user_id}        //   each row smoothly when order changes
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
