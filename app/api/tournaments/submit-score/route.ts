@@ -1,6 +1,6 @@
 // app/api/tournaments/submit-score/route.ts
-// ChatGPT Steps 4 + 7: timer-aware + anti-cheat validation
-// Auto-finalizes via /api/tournaments/[id]/finalize when all players finish
+// Status-based guard: only accepts scores when status = 'running'
+// No end_time check — status is the single source of truth.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getServerSession } from 'next-auth';
@@ -37,38 +37,32 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { tournament_id, score, game_metrics = {} } = body;
-    const isFinal: boolean = body.is_final ?? body.final_score ?? false;
+    const isFinal: boolean = body.is_final ?? false;
 
     if (!tournament_id || typeof score !== 'number' || score < 0)
       return NextResponse.json({ error: 'tournament_id and valid score required' }, { status: 400 });
 
     const { balls_dropped = 0, merges_completed = 0, game_duration_seconds = 0 } = game_metrics;
 
-    // ── Anti-cheat (ChatGPT Step 7) ──────────────────────────────────────────
+    // ── Anti-cheat ────────────────────────────────────────────────────────────
     if (merges_completed > balls_dropped && balls_dropped > 0)
       return NextResponse.json({ error: 'Invalid: merges > balls' }, { status: 400 });
     if (merges_completed > 0 && score > merges_completed * MAX_SCORE_PER_MERGE)
       return NextResponse.json({ error: 'Score exceeds merge maximum' }, { status: 400 });
 
-    // ── Fetch tournament ──────────────────────────────────────────────────────
+    // ── Status guard — status is the only source of truth ────────────────────
     const { data: tournament } = await supabase
       .from('tournaments')
-      .select('status, end_time')
+      .select('status')
       .eq('id', tournament_id)
       .single();
 
     if (!tournament)
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
-    if (tournament.status !== 'active')
-      return NextResponse.json({ error: 'Tournament is not active' }, { status: 400 });
+    if (tournament.status !== 'running')
+      return NextResponse.json({ error: `Tournament is not running (status: ${tournament.status})` }, { status: 400 });
 
-    // ── ChatGPT Step 4: reject scores past end_time ───────────────────────────
-    if (tournament.end_time && Date.now() > new Date(tournament.end_time).getTime())
-      return NextResponse.json({ error: 'Tournament has finished' }, { status: 400 });
-
-    // ── Upsert score with GREATEST protection ────────────────────────────────
-    // Uses raw SQL so score can only ever increase — never overwritten by a
-    // lower value from a late/stale submission (race condition protection).
+    // ── Upsert with GREATEST protection (score can only increase) ─────────────
     const { error: scoreError } = await supabase.rpc('upsert_tournament_score', {
       p_tournament_id:         tournament_id,
       p_user_id:               userId,
@@ -80,7 +74,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (scoreError) {
-      console.error('[submit-score] upsert:', scoreError.message);
+      console.error('[submit-score] rpc error:', scoreError.message);
       return NextResponse.json({ error: scoreError.message }, { status: 500 });
     }
 
@@ -93,7 +87,7 @@ export async function POST(request: NextRequest) {
       .eq('tournament_id', tournament_id)
       .eq('user_id', userId);
 
-    // ── Auto-finalize when ALL players finish ─────────────────────────────────
+    // ── Auto-finalize when all players have finished ──────────────────────────
     if (isFinal) {
       const { count: total } = await supabase
         .from('tournament_scores')
@@ -107,11 +101,9 @@ export async function POST(request: NextRequest) {
         .eq('finished', true);
 
       if (total !== null && finished !== null && finished >= total) {
-        // All players done — finalize immediately
         const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-        fetch(`${baseUrl}/api/tournaments/${tournament_id}/finalize`, {
-          method: 'POST',
-        }).catch(e => console.error('[submit-score] auto-finalize failed:', e.message));
+        fetch(`${baseUrl}/api/tournaments/${tournament_id}/finalize`, { method: 'POST' })
+          .catch(e => console.error('[submit-score] auto-finalize failed:', e.message));
       }
     }
 
