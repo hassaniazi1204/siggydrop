@@ -30,6 +30,9 @@ export default function TournamentGamePage() {
   const lastSubmit   = useRef(0);
   const endTimeRef   = useRef<number | null>(null);
   const gameEndedRef = useRef(false);
+  // scoreRef mirrors currentScore state — used by submitScore so the final
+  // submission always reads the latest value regardless of closure staleness
+  const scoreRef     = useRef(0);
   const tournamentId = params.id as string;
 
   // Resolve DB uuid
@@ -96,12 +99,14 @@ export default function TournamentGamePage() {
   }, [gameStarted, gameEnded, currentScore]);
 
   const submitScore = async (isFinal: boolean): Promise<number> => {
-    if (!session || !tournamentId) return currentScore;
+    if (!session || !tournamentId) return scoreRef.current;
     const now = Date.now();
-    if (!isFinal && now - lastSubmit.current < 2000) return currentScore;
+    if (!isFinal && now - lastSubmit.current < 2000) return scoreRef.current;
     lastSubmit.current = now;
 
-    const scoreToSubmit = currentScore;
+    // Always read from ref — never from React state (avoids stale closure bug)
+    const scoreToSubmit = scoreRef.current;
+    console.log('[submitScore] submitting:', { scoreToSubmit, isFinal });
     try {
       await fetch('/api/tournaments/submit-score', {
         method: 'POST',
@@ -222,7 +227,7 @@ export default function TournamentGamePage() {
           <div className="h-full flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-purple-900">
             <MergeGame
               tournamentMode={true}
-              onScoreChange={setCurrentScore}
+              onScoreChange={(s) => { setCurrentScore(s); scoreRef.current = s; }}
               onBallDropped={() => gameMetrics.current.balls_dropped++}
               onMerge={() => gameMetrics.current.merges_completed++}
               onGameOver={() => handleGameEnd(false)}
