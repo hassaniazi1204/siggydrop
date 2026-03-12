@@ -1,23 +1,25 @@
 // app/api/tournaments/[id]/leaderboard/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { cookies } from 'next/headers';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createClient();
     const tournamentId = params.id;
 
     const { data: tournament } = await supabase
       .from('tournaments')
-      .select('id, tournament_code, status, started_at, ended_at')
+      .select('id, tournament_code, status, started_at, ended_at, duration_minutes')
       .eq('id', tournamentId)
       .single();
 
-    if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    if (!tournament)
+      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
 
-    // Finished: serve from tournament_results (rank baked in, username snapshotted)
+    // Finished: serve snapshot from tournament_results
     if (tournament.status === 'finished') {
       const { data: results } = await supabase
         .from('tournament_results')
@@ -27,16 +29,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: true, tournament, leaderboard: results || [], is_final: true });
     }
 
-    // Active/waiting: serve live scores with username joined from users (uuid FK — direct join)
+    // Running/waiting: serve live scores joined with users
     const { data: scores } = await supabase
       .from('tournament_scores')
-      .select(`
-        user_id,
-        score,
-        finished,
-        last_update,
-        users ( username )
-      `)
+      .select('user_id, score, finished, last_update, users ( username )')
       .eq('tournament_id', tournamentId)
       .order('score', { ascending: false });
 
@@ -50,7 +46,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }));
 
     return NextResponse.json({ success: true, tournament, leaderboard, is_final: false });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[leaderboard] error:', err.message);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
