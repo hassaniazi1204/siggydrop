@@ -1,7 +1,12 @@
 'use client';
-// Play page — lifecycle: running → finished
-// Timer computed from started_at + duration_minutes (end_time never stored).
-// status is the single source of truth for all guards.
+// Play page — client responsibilities:
+//   - Submit score updates periodically and on game-over (submit-score only)
+//   - Listen for tournament status → 'finished' via Realtime and redirect
+//
+// Client does NOT:
+//   - Call /finalize directly
+//   - Control tournament state
+//   - Gate redirects behind a ref — all players redirect when server says finished
 
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -31,23 +36,20 @@ export default function TournamentGamePage() {
   const [playerUsername, setPlayerUsername]   = useState('');
   const [currentUserDbId, setCurrentUserDbId] = useState<string | null>(null);
 
-  const gameMetrics    = useRef({ balls_dropped: 0, merges_completed: 0, game_start_time: 0 });
-  const lastSubmit     = useRef(0);
-  const gameEndedRef   = useRef(false);
+  const gameMetrics  = useRef({ balls_dropped: 0, merges_completed: 0, game_start_time: 0 });
+  const lastSubmit   = useRef(0);
+  const gameEndedRef = useRef(false);
   // scoreRef mirrors currentScore — avoids stale closure on final submit
-  const scoreRef       = useRef(0);
-  // redirectingRef gates Realtime-triggered redirect so it only fires
-  // after this player's own submitScore() has completed
-  const redirectingRef = useRef(false);
-  const tournamentId   = params.id as string;
+  const scoreRef     = useRef(0);
+  const tournamentId = params.id as string;
 
-  // Resolve DB uuid — gated on session
+  // Resolve DB uuid — gated on session being loaded
   useEffect(() => {
     if (!session) return;
     fetch('/api/user/me').then(r => r.json()).then(d => { if (d.id) setCurrentUserDbId(d.id); });
   }, [session]);
 
-  // Load tournament, compute timer from started_at + duration_minutes
+  // Load tournament — timer derived from started_at + duration_minutes
   useEffect(() => {
     if (!tournamentId) return;
     supabase.from('tournaments').select('*').eq('id', tournamentId).single()
@@ -61,7 +63,10 @@ export default function TournamentGamePage() {
       });
   }, [tournamentId]);
 
-  // Countdown — derived from started_at + duration_minutes, not a stored end_time
+  // Countdown timer — purely cosmetic on the client.
+  // When it reaches zero we submit the final score and show the overlay.
+  // The actual tournament finalization is server-side (pg_cron or submit-score auto-finalize).
+  // The Realtime listener below is what triggers the redirect for all players.
   useEffect(() => {
     if (!tournament?.started_at || gameEnded) return;
     const endMs = new Date(tournament.started_at).getTime() + tournament.duration_minutes * 60 * 1000;
@@ -75,8 +80,9 @@ export default function TournamentGamePage() {
     return () => clearInterval(iv);
   }, [tournament?.started_at, tournament?.duration_minutes, gameEnded]);
 
-  // Realtime: redirect all players when status → finished.
-  // Only redirects once redirectingRef is true (i.e. this player's submit is done).
+  // Realtime: redirect ALL players the moment tournament status → 'finished'.
+  // No redirectingRef gate — the server is the authority. When it says finished,
+  // every client redirects immediately regardless of local game state.
   useEffect(() => {
     if (!tournamentId) return;
     const ch = supabase
@@ -85,14 +91,14 @@ export default function TournamentGamePage() {
         event: 'UPDATE', schema: 'public', table: 'tournaments',
         filter: `id=eq.${tournamentId}`,
       }, (payload) => {
-        if ((payload.new as any).status === 'finished' && redirectingRef.current)
+        if ((payload.new as any).status === 'finished')
           router.push(`/tournament/${tournamentId}/results`);
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tournamentId]);
 
-  // Start game when tournament is running
+  // Start game when status is running
   useEffect(() => {
     if (!tournament || gameStarted) return;
     if (tournament.status === 'running') {
@@ -135,38 +141,43 @@ export default function TournamentGamePage() {
     return scoreToSubmit;
   };
 
-  const finalizeTournament = async () => {
-    try {
-      await fetch(`/api/tournaments/${tournamentId}/finalize`, { method: 'POST' });
-    } catch (err) { console.error('[play] finalize error:', err); }
-  };
-
   const handleGameEnd = async (timeExpired: boolean) => {
     if (gameEndedRef.current) return;
     gameEndedRef.current = true;
     setGameEnded(true);
 
-    // Final score submitted and awaited before any navigation
+    // Submit final score — this is ALL the client does.
+    // If timeExpired: server's auto-finalize (or pg_cron) will set status=finished
+    //   and Realtime will redirect all players.
+    // If player finished early: they see the waiting screen until Realtime fires.
     const submitted = await submitScore(true);
 
-    if (timeExpired) {
-      await finalizeTournament();
-      redirectingRef.current = true;
-      router.push(`/tournament/${tournamentId}/results`);
-    } else {
-      // Player finished early — wait for host/timer to end tournament
-      redirectingRef.current = true;
+    if (!timeExpired) {
+      // Player finished before timer — show waiting screen
       setPlayerFinished(true);
       setFinalScore(submitted || scoreRef.current);
       setPlayerUsername(session?.user?.name || session?.user?.email?.split('@')[0] || 'Player');
     }
+    // timeExpired case: overlay is already shown, Realtime redirect will arrive shortly
   };
 
+  // Host ends tournament early — POST to creator-authenticated server endpoint.
+  // Server validates creator, triggers finalize, status change propagates via Realtime.
   const handleEndTournament = async () => {
     if (!window.confirm('End this tournament now for all players?')) return;
-    await finalizeTournament();
-    redirectingRef.current = true;
-    router.push(`/tournament/${tournamentId}/results`);
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        console.error('[play] end tournament failed:', d.error);
+      }
+      // On success, server sets status=finished → Realtime redirects all players
+    } catch (err) {
+      console.error('[play] end tournament error:', err);
+    }
   };
 
   const formatTime = (s: number) =>
@@ -193,7 +204,7 @@ export default function TournamentGamePage() {
           <div className="text-center">
             <h1 className="text-6xl font-black text-white mb-4">TIME'S UP!</h1>
             <p className="text-2xl text-purple-400 mb-4">Final Score: {currentScore.toLocaleString()}</p>
-            <p className="text-gray-400">Finalizing results...</p>
+            <p className="text-gray-400">Waiting for results...</p>
           </div>
         </div>
       )}
