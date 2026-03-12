@@ -87,20 +87,29 @@ export async function POST(request: NextRequest) {
       .eq('tournament_id', tournament_id)
       .eq('user_id', userId);
 
-    // ── Auto-finalize when all players have finished ──────────────────────────
+    // ── Auto-finalize when ALL participants have finished ────────────────────
+    // IMPORTANT: use tournament_participants as the total headcount, NOT
+    // tournament_scores. Scores only exist for players who have submitted,
+    // so comparing scores/scores gives 1/1 the moment the first player finishes.
     if (isFinal) {
-      const { count: total } = await supabase
-        .from('tournament_scores')
+      const { count: totalParticipants } = await supabase
+        .from('tournament_participants')
         .select('*', { count: 'exact', head: true })
         .eq('tournament_id', tournament_id);
 
-      const { count: finished } = await supabase
+      const { count: finishedScores } = await supabase
         .from('tournament_scores')
         .select('*', { count: 'exact', head: true })
         .eq('tournament_id', tournament_id)
         .eq('finished', true);
 
-      if (total !== null && finished !== null && finished >= total) {
+      console.log(`[submit-score] finished ${finishedScores}/${totalParticipants} participants`);
+
+      if (
+        totalParticipants !== null &&
+        finishedScores    !== null &&
+        finishedScores    >= totalParticipants
+      ) {
         const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
         fetch(`${baseUrl}/api/tournaments/${tournament_id}/finalize`, { method: 'POST' })
           .catch(e => console.error('[submit-score] auto-finalize failed:', e.message));
