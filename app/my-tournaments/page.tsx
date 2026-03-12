@@ -10,8 +10,10 @@ interface Tournament {
   tournament_code: string;
   status: string;
   max_players: number;
+  duration_minutes: number;
   created_at: string;
   started_at: string | null;
+  ended_at: string | null;
   participant_count?: number;
 }
 
@@ -41,8 +43,10 @@ export default function MyTournamentsPage() {
       if (error || !data) { setLoading(false); return; }
 
       const withCounts = await Promise.all(data.map(async t => {
-        const { count } = await supabase.from('tournament_participants')
-          .select('*', { count: 'exact', head: true }).eq('tournament_id', t.id);
+        const { count } = await supabase
+          .from('tournament_participants')
+          .select('*', { count: 'exact', head: true })
+          .eq('tournament_id', t.id);
         return { ...t, participant_count: count || 0 };
       }));
 
@@ -55,10 +59,8 @@ export default function MyTournamentsPage() {
   const badge = (s: string) => {
     const m: Record<string, [string, string, string]> = {
       waiting:  ['bg-yellow-500/20', 'text-yellow-400', 'Waiting'],
-      starting: ['bg-blue-500/20',   'text-blue-400',   'Starting'],
-      active:   ['bg-green-500/20',  'text-green-400',  'Active'],
+      running:  ['bg-green-500/20',  'text-green-400',  'Running'],
       finished: ['bg-gray-500/20',   'text-gray-400',   'Finished'],
-      cancelled:['bg-red-500/20',    'text-red-400',    'Cancelled'],
     };
     const [bg, text, label] = m[s] || m.waiting;
     return <span className={`px-3 py-1 rounded-full text-xs font-bold ${bg} ${text}`}>{label}</span>;
@@ -86,29 +88,38 @@ export default function MyTournamentsPage() {
             <div className="text-6xl mb-4">🏆</div>
             <h2 className="text-2xl font-black text-white mb-2">No Tournaments Yet</h2>
             <p className="text-gray-400 mb-6">Create your first tournament to get started</p>
-            <button onClick={() => router.push('/tournaments')} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold">Create Tournament</button>
+            <button onClick={() => router.push('/tournaments')} className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold">
+              Create Tournament
+            </button>
           </div>
         ) : (
           <div className="grid gap-4">
             {tournaments.map(t => (
-              <div key={t.id} onClick={() => {
-                if (t.status === 'active') router.push(`/tournament/${t.id}/play`);
-                else if (t.status === 'finished') router.push(`/tournament/${t.id}/results`);
-                else router.push(`/tournament/${t.id}`);
-              }} className="bg-gray-900/80 border-2 border-gray-700 hover:border-purple-500 rounded-2xl p-6 cursor-pointer transition-all hover:scale-[1.02]">
+              <div
+                key={t.id}
+                onClick={() => {
+                  if (t.status === 'running')  router.push(`/tournament/${t.id}/play`);
+                  else if (t.status === 'finished') router.push(`/tournament/${t.id}/results`);
+                  else router.push(`/tournament/${t.id}`);
+                }}
+                className="bg-gray-900/80 border-2 border-gray-700 hover:border-purple-500 rounded-2xl p-6 cursor-pointer transition-all hover:scale-[1.02]"
+              >
                 <div className="flex items-center gap-3 mb-4">
                   {badge(t.status)}
-                  <span className="text-gray-400 text-sm font-mono">Code: <span className="text-purple-400 font-bold">{t.tournament_code}</span></span>
+                  <span className="text-gray-400 text-sm font-mono">
+                    Code: <span className="text-purple-400 font-bold">{t.tournament_code}</span>
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div><p className="text-gray-500 text-xs mb-1">Players</p><p className="text-white font-bold">{t.participant_count} / {t.max_players}</p></div>
+                  <div><p className="text-gray-500 text-xs mb-1">Duration</p><p className="text-white font-bold">{t.duration_minutes}m</p></div>
                   <div><p className="text-gray-500 text-xs mb-1">Created</p><p className="text-white font-bold">{new Date(t.created_at).toLocaleDateString()}</p></div>
-                  <div><p className="text-gray-500 text-xs mb-1">Started</p><p className="text-white font-bold">{t.started_at ? new Date(t.started_at).toLocaleTimeString() : 'Not yet'}</p></div>
+                  <div><p className="text-gray-500 text-xs mb-1">Started</p><p className="text-white font-bold">{t.started_at ? new Date(t.started_at).toLocaleTimeString() : '—'}</p></div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <p className="text-purple-400 text-sm font-bold">
-                    {t.status === 'waiting' && '→ Click to manage tournament'}
-                    {t.status === 'active' && '→ Click to view live game'}
+                    {t.status === 'waiting'  && '→ Click to manage tournament'}
+                    {t.status === 'running'  && '→ Click to view live game'}
                     {t.status === 'finished' && '→ Click to view results'}
                   </p>
                 </div>
