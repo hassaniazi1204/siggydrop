@@ -86,20 +86,20 @@ export async function POST(
     if (insErr) throw insErr;
 
     // Race condition guard: only the first concurrent caller wins.
-    // Adding .eq('status', 'running') means if two finalize calls arrive
-    // simultaneously, only one will match and update — the second will
-    // update 0 rows and its result snapshot becomes the canonical one.
-    const { count: updatedRows, error: updErr } = await supabase
+    // .eq('status', 'running') means if two finalize calls arrive simultaneously,
+    // only one will match the update. The second gets data=null (0 rows matched).
+    const { data: updatedTournament, error: updErr } = await supabase
       .from('tournaments')
       .update({ status: 'finished', ended_at: new Date().toISOString() })
       .eq('id', tournamentId)
-      .eq('status', 'running')   // ← race condition guard
-      .select('*', { count: 'exact', head: true });
+      .eq('status', 'running')
+      .select('id')
+      .maybeSingle();
 
     if (updErr) throw updErr;
 
-    // If 0 rows updated, another concurrent request already finalized — that's fine
-    if (updatedRows === 0) {
+    // data=null means another concurrent request already finalized this tournament
+    if (!updatedTournament) {
       console.log(`[finalize] ${tournamentId} already finalized by concurrent request.`);
       const { data: existing } = await supabase
         .from('tournament_results')
