@@ -39,20 +39,39 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { max_players = 10, duration_minutes = 10 } = body;
 
-    // Block creation only if a tournament is actively RUNNING.
-    // 'waiting' and 'finished' tournaments never block new ones.
-    const { data: running } = await supabase
+    // Block creation only if a tournament is actively RUNNING and not yet expired.
+    // A tournament whose timer has elapsed is treated as stale — auto-finish it
+    // and allow creation to proceed rather than blocking forever.
+    const { data: runningTournaments } = await supabase
       .from('tournaments')
-      .select('id')
-      .eq('status', 'running')
-      .limit(1)
-      .maybeSingle();
+      .select('id, started_at, duration_minutes')
+      .eq('status', 'running');
 
-    if (running) {
-      return NextResponse.json(
-        { error: 'A tournament is currently running. Wait for it to finish before creating a new one.' },
-        { status: 409 }
-      );
+    if (runningTournaments?.length) {
+      const now = Date.now();
+      const genuinelyRunning = runningTournaments.filter(t => {
+        if (!t.started_at || !t.duration_minutes) return true; // no timer info, assume running
+        const endMs = new Date(t.started_at).getTime() + t.duration_minutes * 60 * 1000;
+        return now < endMs; // only block if timer hasn't expired
+      });
+
+      // Auto-finish any tournaments whose timer has already elapsed
+      const stale = runningTournaments.filter(t => !genuinelyRunning.includes(t));
+      if (stale.length) {
+        const staleIds = stale.map(t => t.id);
+        console.log('[create] auto-finishing stale tournaments:', staleIds);
+        await supabase
+          .from('tournaments')
+          .update({ status: 'finished', ended_at: new Date().toISOString() })
+          .in('id', staleIds);
+      }
+
+      if (genuinelyRunning.length > 0) {
+        return NextResponse.json(
+          { error: 'A tournament is currently running. Wait for it to finish before creating a new one.' },
+          { status: 409 }
+        );
+      }
     }
 
     // Generate unique 6-char code
