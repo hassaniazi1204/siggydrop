@@ -71,39 +71,65 @@ function InfoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Start countdown overlay (5 → 1 → GO) ────────────────────────────────────
+// ── Start countdown overlay ───────────────────────────────────────────────────
+// Sequence: 5 → 4 → 3 → 2 → 1 → GO! → [done]
+// Each step (including GO) shows for exactly 2 seconds.
+// Total: 12 seconds (6 steps × 2s). onDone() fires after GO disappears.
+//
+// State:  5..1 = show number,  0 = show GO,  -1 = call onDone + unmount
+// animKey increments every step so the CSS animation restarts cleanly.
 function StartCountdown({ onDone }: { onDone: () => void }) {
-  const [count, setCount] = useState(5);
+  const [step, setStep]       = useState(5);   // 5,4,3,2,1,0,-1
+  const [animKey, setAnimKey] = useState(0);
 
   useEffect(() => {
-    if (count <= 0) { onDone(); return; }
-    const t = setTimeout(() => setCount(c => c - 1), 1000);
+    if (step === -1) { onDone(); return; }
+    const t = setTimeout(() => {
+      setStep(s => s - 1);
+      setAnimKey(k => k + 1);
+    }, 2000);                  // ← exactly 2 seconds per step
     return () => clearTimeout(t);
-  }, [count, onDone]);
+  }, [step, onDone]);
+
+  if (step === -1) return null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+    <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/55 backdrop-blur-[2px] rounded-2xl pointer-events-none">
       <div className="text-center">
-        {count > 0 ? (
+        {step > 0 ? (
           <div
-            key={count}
-            className="text-9xl font-black text-white drop-shadow-[0_0_40px_rgba(168,85,247,0.9)]"
-            style={{ animation: 'countdown-pop 0.9s ease-out forwards' }}
+            key={animKey}
+            className="font-black text-white select-none"
+            style={{
+              fontSize: '9rem',
+              lineHeight: 1,
+              textShadow: '0 0 60px rgba(168,85,247,0.9), 0 0 20px rgba(168,85,247,0.5)',
+              animation: 'cdPop 1.8s ease-out forwards',
+            }}
           >
-            {count}
+            {step}
           </div>
         ) : (
-          <div className="text-7xl font-black text-purple-400 drop-shadow-[0_0_40px_rgba(168,85,247,0.9)]">
+          <div
+            key={animKey}
+            className="font-black text-purple-400 select-none"
+            style={{
+              fontSize: '7rem',
+              lineHeight: 1,
+              textShadow: '0 0 60px rgba(168,85,247,0.9)',
+              animation: 'cdPop 1.8s ease-out forwards',
+            }}
+          >
             GO!
           </div>
         )}
       </div>
       <style>{`
-        @keyframes countdown-pop {
-          0%   { transform: scale(1.6); opacity: 0; }
-          20%  { transform: scale(1);   opacity: 1; }
-          80%  { transform: scale(1);   opacity: 1; }
-          100% { transform: scale(0.7); opacity: 0; }
+        @keyframes cdPop {
+          0%   { transform: scale(1.8); opacity: 0; }
+          15%  { transform: scale(1.0); opacity: 1; }
+          70%  { transform: scale(1.0); opacity: 1; }
+          100% { transform: scale(0.6); opacity: 0; }
         }
       `}</style>
     </div>
@@ -130,6 +156,8 @@ export default function TournamentGamePage() {
   const [showInfoModal, setShowInfoModal]   = useState(false);
   // Countdown: true = showing 5-4-3-2-1, false = game active
   const [showCountdown, setShowCountdown]   = useState(false);
+  // Music mute — owned here, pushed into MergeGame via externalIsMuted prop
+  const [isMuted, setIsMuted]               = useState(false);
 
   const gameMetrics  = useRef({ balls_dropped: 0, merges_completed: 0, game_start_time: 0 });
   const lastSubmit   = useRef(0);
@@ -298,18 +326,34 @@ export default function TournamentGamePage() {
 
       {showInfoModal && <InfoModal onClose={() => setShowInfoModal(false)} />}
 
-      {/* ── Thin top bar: just tournament label + ⓘ ── */}
+      {/* ── Thin top bar: tournament label + [ 🔊 Music ] [ ⓘ ] ── */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-black/70 border-b border-purple-500/15">
         <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">
           🏆 Tournament
         </span>
-        <button
-          onClick={() => setShowInfoModal(true)}
-          title="How to Play"
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-800/60 hover:bg-gray-700/80 text-gray-400 hover:text-white border border-gray-600/40 transition-colors text-sm font-bold"
-        >
-          ⓘ
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Music toggle — state owned here, synced into MergeGame */}
+          <button
+            onClick={() => setIsMuted(m => !m)}
+            title={isMuted ? 'Unmute music' : 'Mute music'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
+              ${isMuted
+                ? 'bg-gray-800/60 text-gray-400 border-gray-600/40 hover:bg-gray-700/80'
+                : 'bg-green-900/40 text-green-300 border-green-500/40 hover:bg-green-800/50'
+              }`}
+          >
+            {isMuted ? '🔇' : '🔊'}
+            <span className="hidden sm:inline">{isMuted ? 'Unmute' : 'Music'}</span>
+          </button>
+          {/* Info button */}
+          <button
+            onClick={() => setShowInfoModal(true)}
+            title="How to Play"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-800/60 hover:bg-gray-700/80 text-gray-400 hover:text-white border border-gray-600/40 transition-colors text-sm font-bold"
+          >
+            ⓘ
+          </button>
+        </div>
       </div>
 
       {/* ── Main content: canvas column + leaderboard column ── */}
@@ -340,6 +384,8 @@ export default function TournamentGamePage() {
               onMerge={() => gameMetrics.current.merges_completed++}
               onGameOver={() => handleGameEnd(false)}
               disabled={gameEnded || showCountdown}
+              externalIsMuted={isMuted}
+              onMuteChange={(muted) => setIsMuted(muted)}
             />
           </div>
         </div>
