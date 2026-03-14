@@ -175,9 +175,7 @@ export default function MergeGame(props?: GameProps) {
       if (go)    { go.muted    = false; }
     }
 
-    // Notify tournament page so its button stays in sync
-    onMuteChange?.(isMuted);
-  }, [isMuted, onMuteChange]);
+  }, [isMuted]);
 
   // ── Unlock audio on first user gesture (browser autoplay policy) ───────────
   useEffect(() => {
