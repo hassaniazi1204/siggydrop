@@ -50,12 +50,10 @@ export async function POST(request: NextRequest) {
     if ((count ?? 0) < 2)
       return NextResponse.json({ error: 'At least 2 players required to start' }, { status: 400 });
 
-    // Countdown on the client is 12 seconds (steps 5,4,3,2,1,GO × 2s each).
-    // We push started_at forward by that amount so the server deadline is
-    // deadline = started_at + duration_minutes = (now + countdown) + duration
-    // This gives players the full duration_minutes of actual gameplay.
-    const COUNTDOWN_MS = 12 * 1000;
-    const started_at = new Date(Date.now() + COUNTDOWN_MS).toISOString();
+    // started_at = now. The client display timer initialises from
+    // duration_minutes * 60 after the countdown ends, so players always
+    // see the full duration regardless of when started_at was written.
+    const started_at = new Date().toISOString();
 
     // Transition: waiting → running
     // started_at is set here. end_time is NOT stored — computed as needed:
