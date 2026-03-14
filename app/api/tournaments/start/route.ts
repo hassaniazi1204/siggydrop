@@ -50,7 +50,12 @@ export async function POST(request: NextRequest) {
     if ((count ?? 0) < 2)
       return NextResponse.json({ error: 'At least 2 players required to start' }, { status: 400 });
 
-    const now = new Date().toISOString();
+    // Countdown on the client is 12 seconds (steps 5,4,3,2,1,GO × 2s each).
+    // We push started_at forward by that amount so the server deadline is
+    // deadline = started_at + duration_minutes = (now + countdown) + duration
+    // This gives players the full duration_minutes of actual gameplay.
+    const COUNTDOWN_MS = 12 * 1000;
+    const started_at = new Date(Date.now() + COUNTDOWN_MS).toISOString();
 
     // Transition: waiting → running
     // started_at is set here. end_time is NOT stored — computed as needed:
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest) {
       .from('tournaments')
       .update({
         status:     'running',
-        started_at: now,
+        started_at: started_at,
       })
       .eq('id', tournament_id)
       .select()
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
           merges_completed:      0,
           game_duration_seconds: 0,
           finished:              false,
-          last_update:           now,
+          last_update:           started_at,
         })),
         { onConflict: 'tournament_id,user_id', ignoreDuplicates: true }
       );
