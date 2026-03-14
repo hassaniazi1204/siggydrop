@@ -12,7 +12,7 @@
 //   - Never calls /finalize directly
 //   - Realtime redirect when status → finished
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useSession } from 'next-auth/react';
@@ -225,11 +225,13 @@ export default function TournamentGamePage() {
     return () => clearInterval(iv);
   }, [gameStarted, gameEnded]);
 
-  const handleCountdownDone = () => {
+  // useCallback gives a stable reference — without this, onDone changes every render
+  // which resets the countdown useEffect and causes the infinite restart bug.
+  const handleCountdownDone = useCallback(() => {
     setShowCountdown(false);
     setGameStarted(true);
     gameMetrics.current.game_start_time = Date.now();
-  };
+  }, []);
 
   const submitScore = async (isFinal: boolean): Promise<number> => {
     if (!session || !tournamentId) return scoreRef.current;
