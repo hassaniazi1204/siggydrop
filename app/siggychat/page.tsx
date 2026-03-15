@@ -21,10 +21,41 @@ export default function SiggyChat() {
   const [loading, setLoading]     = useState(false);
   const bottomRef                 = useRef<HTMLDivElement>(null);
   const inputRef                  = useRef<HTMLInputElement>(null);
+  const audioRef                  = useRef<HTMLAudioElement | null>(null);
+  const [isMuted, setIsMuted]     = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // Init background music — plays on first user gesture (browser autoplay policy)
+  useEffect(() => {
+    const audio = new Audio('/sounds/siggychat.mp3');
+    audio.loop   = true;
+    audio.volume = 0.35;
+    audioRef.current = audio;
+
+    const unlock = () => {
+      audio.play().catch(() => {});
+    };
+    document.addEventListener('click',      unlock, { once: true });
+    document.addEventListener('keydown',    unlock, { once: true });
+    document.addEventListener('touchstart', unlock, { once: true });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, []);
+
+  // Apply mute state whenever it changes
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.muted = isMuted;
+    if (!isMuted && audioRef.current.paused) {
+      audioRef.current.play().catch(() => {});
+    }
+  }, [isMuted]);
 
   const send = async () => {
     const text = input.trim();
@@ -118,15 +149,29 @@ export default function SiggyChat() {
         paddingTop: '32px', paddingBottom: '24px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <Link href="/" style={{ textDecoration: 'none' }}>
-          <button style={{
-            padding: '8px 18px', fontSize: '0.8rem', fontWeight: 700,
-            fontFamily: "'Barlow', sans-serif", letterSpacing: '0.06em',
-            color: '#a78bfa', background: 'rgba(136,64,255,0.12)',
-            border: '1px solid rgba(136,64,255,0.3)', borderRadius: '8px',
-            cursor: 'pointer', transition: 'all 0.2s',
-          }}>← HOME</button>
-        </Link>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <button style={{
+              padding: '8px 18px', fontSize: '0.8rem', fontWeight: 700,
+              fontFamily: "'Barlow', sans-serif", letterSpacing: '0.06em',
+              color: '#a78bfa', background: 'rgba(136,64,255,0.12)',
+              border: '1px solid rgba(136,64,255,0.3)', borderRadius: '8px',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}>← HOME</button>
+          </Link>
+
+          <button
+            onClick={() => setIsMuted(m => !m)}
+            title={isMuted ? 'Unmute music' : 'Mute music'}
+            style={{
+              padding: '8px 14px', fontSize: '1rem', fontWeight: 700,
+              color: isMuted ? '#6b4fa8' : '#40FFAF',
+              background: isMuted ? 'rgba(30,10,60,0.5)' : 'rgba(64,255,175,0.08)',
+              border: `1px solid ${isMuted ? 'rgba(107,79,168,0.3)' : 'rgba(64,255,175,0.3)'}`,
+              borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >{isMuted ? '🔇' : '🔊'}</button>
+        </div>
 
         <div style={{ textAlign: 'center' }}>
           <h1 style={{
