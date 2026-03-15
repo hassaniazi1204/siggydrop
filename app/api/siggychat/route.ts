@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: SIGGY_SYSTEM_PROMPT },
           ...messages,
         ],
-        max_tokens: 300,
+        max_tokens: 600,
         temperature: 0.85,
       }),
     });
