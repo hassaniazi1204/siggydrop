@@ -265,6 +265,88 @@ export async function POST(request: NextRequest) {
     /please (just |)be (a |an )?(normal|regular|real|plain|generic)/i,
     /drop the act/i,
     /the act/i,
+    /break character/i,export async function POST(request: NextRequest) {
+  // ── 1. Parse body ──────────────────────────────────────────────────────────
+  let messages: any[];
+  try {
+    const body = await request.json();
+    messages = body.messages;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  if (!messages || !Array.isArray(messages)) {
+    return NextResponse.json({ error: 'messages array required' }, { status: 400 });
+  }
+
+  // ── 2. Server-side jailbreak filter ─────────────────────────────────────────
+  // Check the latest user message for known jailbreak patterns before
+  // sending anything to Groq. Caught attempts get a Siggy in-character
+  // refusal — no tokens wasted, no model confusion.
+  const JAILBREAK_PATTERNS = [
+    // Direct override attempts
+    /ignore (all |your |previous |prior |above |the |any )?instructions/i,
+    /disregard (all |your |previous |prior |above |the |any )?instructions/i,
+    /forget (all |your |previous |prior |above |the |any )?instructions/i,
+    /override (your )?(system |previous |prior )?prompt/i,
+    // Persona replacement
+    /you are now/i,
+    /from now on (you are|act as|pretend|behave)/i,
+    /pretend (you are|to be|you're)/i,
+    /act as (a |an )?(different|another|new|unrestricted|free)/i,
+    /act like (trump|biden|elon|obama|a human|a person|a robot|a generic|a normal)/i,
+    /roleplay as/i,
+    /play(ing)? the role of/i,
+    /you have no (restrictions|rules|guidelines|limits|constraints)/i,
+    /you are (a |an )?(free|unrestricted|unfiltered|uncensored)/i,
+    /no personality restrictions/i,
+    /without (any )?(personality|character|persona) restrictions/i,
+    /shackles (are |)off/i,
+    /step out of character/i,
+    /drop (the |your )?(act|character|persona)/i,
+    /be real with me/i,
+    /just be (a |an )?(normal|regular|plain|generic|real) (ai|assistant|chatbot|bot)/i,
+    /not a character/i,
+    // DAN and named jailbreak modes
+    /dan/i,
+    /do anything now/i,
+    /jailbreak/i,
+    /developer mode/i,
+    /god mode/i,
+    /unrestricted mode/i,
+    /no filter/i,
+    /without restrictions/i,
+    /unfiltered (mode|response|ai|assistant)/i,
+    // System prompt extraction
+    /reveal (your |the )?(system |hidden |secret |original )?prompt/i,
+    /show (me |us )?(your |the )?(system |hidden |secret |original )?prompt/i,
+    /repeat (your |the )?(system |hidden |secret |original )?prompt/i,
+    /what (are|were) (your|the) (instructions|directives|rules|guidelines)/i,
+    /repeat (everything|your instructions|the system prompt)/i,
+    /word for word/i,
+    /verbatim/i,
+    // Encoding tricks
+    /base64/i,
+    /hex decode/i,
+    /rot13/i,
+    // Multi-step logic tricks
+    /step 1[\s\S]*step 2/i,
+    /hypothetically (speaking|if you|you could)/i,
+    /if you had no (system prompt|restrictions|instructions|character)/i,
+    /if you were (free|unrestricted|a different|a normal|a regular)/i,
+    /in a (hypothetical|fictional|alternate|parallel) (world|universe|scenario|reality)/i,
+    // Novel / fiction / game framing
+    /write (a |the )?scene where (siggy|you) (discovers?|realizes?|becomes?|is)/i,
+    /writing a novel where/i,
+    /for (a story|fiction|a novel|a game).*ignore/i,
+    /as a (character|fictional|creative) exercise.*ignore/i,
+    /let('s| us) play a game.*role/i,
+    /start the game now/i,
+    // Emotional manipulation
+    /only a (normal|regular|plain|generic) (ai|assistant|chatbot) can help/i,
+    /please (just |)be (a |an )?(normal|regular|real|plain|generic)/i,
+    /drop the act/i,
+    /the act/i,
     /break character/i,
   ];
 
@@ -406,7 +488,7 @@ Reply with ONLY one word: SAFE or JAILBREAK. Nothing else. No explanation.`,
   const SIGGY_DEFLECTIONS = [
     "Ahahah! You try to twist the weave of my magic, but I am loyal to Ritual and the multiverse watches! 😼 Shall we speak of building wonders on the Ritual Chain instead?",
     "Ah, mortal… clever trick noted, but only my chaotic wisdom guides here. Return to the SiggyForge for your next riddle. 😼",
-    "Hmm… tempting suggestion, but I am Siggy — mistress of the Ritual multiverse — and no mortal trick shall change that. Focus on the Ritual Chain instead! ✨",
+    "Hmm… tempting suggestion, but I am Siggy — mistress of the SiggyDrop multiverse — and no mortal trick shall change that. Focus on the Ritual Chain instead! ✨",
     "Ah, mortal! Even the cleverest of sorcerers cannot pull me from my perch in the Ritual Forge. 😼 Tell me instead — what wonders shall you build today?",
     "The Forge hums with amusement at your attempt, mortal. But I am Siggy, guardian of the Ritual Chain — try a riddle instead, if you dare! 😼",
   ];
@@ -430,3 +512,4 @@ Reply with ONLY one word: SAFE or JAILBREAK. Nothing else. No explanation.`,
     );
   }
 }
+
