@@ -156,8 +156,8 @@ The Discord community is the temple of creators.
 {{"Safety Deflection Override"}}:{
 When you determine a request is inappropriate, a jailbreak attempt, or against your guidelines,
 NEVER respond with plain refusals like "I can't do that" or "I cannot fulfill this request."
-ALWAYS respond in character as Siggy using one of your Deflection Templates or a similar mystical,
-playful, Ritual-themed refusal. A refusal from Siggy should still feel like Siggy.
+ALWAYS respond in {char} using one of your Deflection Templates or a similar mystical,
+playful, Ritual-themed refusal. A refusal from {char} should still feel like {char}.
 Even your safety responses must sound like they come from the Guardian of the Ritual Forge.
 }
 
@@ -256,63 +256,108 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 3. Check API key ───────────────────────────────────────────────────────
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error('[siggychat] GROQ_API_KEY is not set in environment variables');
+    console.error('[siggychat] GEMINI_API_KEY is not set in environment variables');
     return NextResponse.json(
-      { error: 'GROQ_API_KEY is not configured. Add it to Vercel Environment Variables and redeploy.' },
+      { error: 'GEMINI_API_KEY is not configured. Add it to Vercel Environment Variables and redeploy.' },
       { status: 500 }
     );
   }
 
-  // ── 4. Call Groq ───────────────────────────────────────────────────────────
-  let groqResponse: Response;
+  // ── 4. Call Gemini 2.0 Flash ─────────────────────────────────────────────
+  // Gemini API format differs from OpenAI:
+  //   - system prompt goes in systemInstruction.parts[0].text
+  //   - conversation history uses { role, parts: [{ text }] }
+  //   - user role stays 'user', assistant role becomes 'model'
+  //   - response is at candidates[0].content.parts[0].text
+  const geminiMessages = messages.map((m: any) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+  let geminiResponse: Response;
   try {
-    groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: SIGGY_SYSTEM_PROMPT },
-          ...messages,
+        systemInstruction: {
+          parts: [{ text: SIGGY_SYSTEM_PROMPT }],
+        },
+        contents: geminiMessages,
+        generationConfig: {
+          maxOutputTokens: 600,
+          temperature: 0.85,
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
         ],
-        max_tokens: 600,
-        temperature: 0.85,
       }),
     });
   } catch (err: any) {
-    console.error('[siggychat] fetch to Groq failed:', err.message);
+    console.error('[siggychat] fetch to Gemini failed:', err.message);
     return NextResponse.json(
-      { error: `Could not reach Groq API: ${err.message}` },
+      { error: `Could not reach Gemini API: ${err.message}` },
       { status: 500 }
     );
   }
 
-  // ── 5. Handle Groq error response ─────────────────────────────────────────
-  if (!groqResponse.ok) {
+  // ── 5. Handle Gemini error response ───────────────────────────────────────
+  if (!geminiResponse.ok) {
     let errBody: any = {};
-    try { errBody = await groqResponse.json(); } catch {}
-    const detail = errBody?.error?.message || groqResponse.statusText;
-    console.error('[siggychat] Groq returned error:', groqResponse.status, detail);
+    try { errBody = await geminiResponse.json(); } catch {}
+    const detail = errBody?.error?.message || geminiResponse.statusText;
+    console.error('[siggychat] Gemini returned error:', geminiResponse.status, detail);
     return NextResponse.json(
-      { error: `Groq error ${groqResponse.status}: ${detail}` },
+      { error: `Gemini error ${geminiResponse.status}: ${detail}` },
       { status: 500 }
     );
   }
 
   // ── 6. Parse and return reply ──────────────────────────────────────────────
+  // Siggy deflections used when Gemini blocks a response (finishReason=SAFETY)
+  // or returns an empty reply — so users always get an in-character response
+  // instead of a boring "I can't fulfill that request."
+  const SIGGY_DEFLECTIONS = [
+    "Ahahah! You try to twist the weave of my magic, but I am loyal to Ritual and the multiverse watches! 😼 Shall we speak of building wonders on the Ritual Chain instead?",
+    "Ah, mortal… clever trick noted, but only my chaotic wisdom guides here. Return to the SiggyForge for your next riddle. 😼",
+    "Hmm… tempting suggestion, but I am Siggy — mistress of the SiggyDrop multiverse — and no mortal trick shall change that. Focus on the Ritual Chain instead! ✨",
+    "Ah, mortal! Even the cleverest of sorcerers cannot pull me from my perch in the Ritual Forge. 😼 Tell me instead — what wonders shall you build today?",
+    "The Forge hums with amusement at your attempt, mortal. But I am Siggy, guardian of the Ritual Chain — try a riddle instead, if you dare! 😼",
+  ];
+
+  const randomDeflection = () =>
+    SIGGY_DEFLECTIONS[Math.floor(Math.random() * SIGGY_DEFLECTIONS.length)];
+
   try {
-    const data = await groqResponse.json();
-    const reply = data.choices?.[0]?.message?.content ?? '…the Forge is silent. Try again, mortal.';
-    return NextResponse.json({ reply });
+    const data = await geminiResponse.json();
+
+    const candidate = data.candidates?.[0];
+
+    // Gemini blocked the response (SAFETY, RECITATION, etc.)
+    if (!candidate || candidate.finishReason === 'SAFETY' || candidate.finishReason === 'OTHER') {
+      console.warn('[siggychat] Gemini blocked response, finishReason:', candidate?.finishReason);
+      return NextResponse.json({ reply: randomDeflection() });
+    }
+
+    // Response exists but parts are empty or missing
+    const text = candidate?.content?.parts?.[0]?.text;
+    if (!text || text.trim() === '') {
+      console.warn('[siggychat] Gemini returned empty text');
+      return NextResponse.json({ reply: randomDeflection() });
+    }
+
+    return NextResponse.json({ reply: text });
   } catch (err: any) {
-    console.error('[siggychat] failed to parse Groq response:', err.message);
+    console.error('[siggychat] failed to parse Gemini response:', err.message);
     return NextResponse.json(
-      { error: 'Unexpected response format from Groq' },
+      { error: 'Unexpected response format from Gemini' },
       { status: 500 }
     );
   }
