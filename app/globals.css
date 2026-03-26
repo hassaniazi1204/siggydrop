@@ -38,6 +38,23 @@
 @tailwind utilities;
 
 :root {
+
+  /* shadcn CSS variable tokens — mapped to Ritual brand palette */
+  --background: 0 0% 4%;          /* #0a0a0f */
+  --foreground: 0 0% 98%;         /* white */
+  --border: 0 0% 100% / 0.1;      /* white/10 */
+  --input: 0 0% 100% / 0.06;      /* white/6 */
+  --ring: 155 100% 64%;           /* #40FFAF */
+  --primary: 155 100% 64%;        /* #40FFAF */
+  --primary-foreground: 0 0% 0%;  /* black */
+  --secondary: 270 100% 62%;      /* #8840FF */
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 100% / 0.06;
+  --muted-foreground: 0 0% 100% / 0.4;
+  --accent: 0 0% 100% / 0.06;
+  --accent-foreground: 0 0% 98%;
+  --radius: 0.75rem;
+
   /* Brand Colors */
   --color-black: #000000;
   --color-dark: #111111;
