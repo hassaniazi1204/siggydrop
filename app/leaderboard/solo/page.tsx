@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface LeaderboardEntry {
   id: number;
@@ -11,135 +13,149 @@ interface LeaderboardEntry {
   created_at: string;
 }
 
+const RANK_MEDALS = ['🥇', '🥈', '🥉'];
+
 function SoloLeaderboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightScore, setHighlightScore] = useState<number | null>(null);
 
   useEffect(() => {
-    // Highlight the score just submitted (passed via URL param)
     const score = searchParams.get('score');
     if (score) setHighlightScore(parseInt(score));
-    fetchLeaderboard();
+    fetch('/api/leaderboard')
+      .then(r => r.json())
+      .then(d => { if (d.success) setEntries(d.data); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [searchParams]);
 
-  const fetchLeaderboard = async () => {
-    try {
-      const res = await fetch('/api/leaderboard');
-      const data = await res.json();
-      if (data.success) setEntries(data.data);
-    } catch (err) {
-      console.error('Failed to fetch leaderboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Current user's username for highlighting their entries
   const currentUsername = session?.user?.name || session?.user?.email?.split('@')[0];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-purple-900">
-        <div className="text-white text-2xl">Loading leaderboard...</div>
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-2 border-[#40FFAF] border-t-transparent rounded-full animate-spin" />
+        <p className="text-white/50 text-sm">Loading leaderboard…</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-purple-900 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-6xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
-            🏆 SOLO LEADERBOARD
+    <div className="min-h-screen bg-black px-4 py-12">
+      <div className="max-w-2xl mx-auto">
+
+        {/* Header */}
+        <div className="mb-10 text-center">
+          <p className="text-xs font-bold text-[#40FFAF] uppercase tracking-[0.2em] mb-3">
+            Solo Rankings
+          </p>
+          <h1 className="text-5xl font-black text-white tracking-tight">
+            Leaderboard
           </h1>
-          <p className="text-gray-400 text-xl">Top 20 Solo Players</p>
+          <p className="text-white/35 text-sm mt-2">Top 20 solo players</p>
         </div>
 
-        <div className="bg-gray-900/50 backdrop-blur-md border-2 border-purple-500/30 rounded-2xl p-8">
+        {/* Table */}
+        <div className="rounded-2xl border border-white/8 overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-[3rem_1fr_auto] gap-4 px-5 py-3 border-b border-white/6 bg-white/3">
+            <span className="text-xs font-bold text-white/30 uppercase tracking-widest">#</span>
+            <span className="text-xs font-bold text-white/30 uppercase tracking-widest">Player</span>
+            <span className="text-xs font-bold text-white/30 uppercase tracking-widest text-right">Score</span>
+          </div>
+
           {entries.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-400 text-xl">No scores yet. Be the first!</p>
+            <div className="py-16 text-center text-white/30 text-sm">
+              No scores yet. Be the first!
             </div>
           ) : (
-            <div className="space-y-3">
-              {entries.map((entry, index) => {
-                const isMe = currentUsername && entry.username === currentUsername;
-                const isJustSubmitted = highlightScore !== null && entry.score === highlightScore && isMe;
-                const rank = index + 1;
+            entries.map((entry, i) => {
+              const isMe = currentUsername && entry.username === currentUsername;
+              const isNew = highlightScore !== null && entry.score === highlightScore && isMe;
+              const rank = i + 1;
 
-                return (
-                  <div
-                    key={entry.id}
-                    className={`flex items-center gap-4 p-4 rounded-xl transition-all ${
-                      isJustSubmitted
-                        ? 'bg-purple-600/30 border-2 border-purple-500 scale-105'
-                        : isMe
-                        ? 'bg-purple-900/30 border-2 border-purple-700'
-                        : 'bg-black/30 border-2 border-gray-700 hover:border-purple-500/50'
-                    }`}
-                  >
-                    <div className="w-16 text-center">
-                      {rank === 1 ? <div className="text-5xl">🥇</div>
-                        : rank === 2 ? <div className="text-5xl">🥈</div>
-                        : rank === 3 ? <div className="text-5xl">🥉</div>
-                        : <div className="text-3xl font-black text-gray-400">#{rank}</div>
-                      }
-                    </div>
+              return (
+                <div
+                  key={entry.id}
+                  className={cn(
+                    'grid grid-cols-[3rem_1fr_auto] gap-4 items-center px-5 py-4',
+                    'border-b border-white/5 last:border-0 transition-colors',
+                    isNew  && 'bg-[#40FFAF]/8 border-l-2 border-l-[#40FFAF]',
+                    isMe && !isNew && 'bg-[#8840FF]/6',
+                    !isMe  && 'hover:bg-white/3',
+                  )}
+                >
+                  {/* Rank */}
+                  <div className="text-center">
+                    {rank <= 3
+                      ? <span className="text-xl">{RANK_MEDALS[rank - 1]}</span>
+                      : <span className="text-sm font-bold text-white/30">#{rank}</span>
+                    }
+                  </div>
 
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl">
+                  {/* Player */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8840FF] to-[#E554E8] flex items-center justify-center text-white text-sm font-black flex-shrink-0">
                       {entry.username.charAt(0).toUpperCase()}
                     </div>
-
-                    <div className="flex-1">
-                      <div className={`font-bold text-lg ${isMe ? 'text-purple-300' : 'text-white'}`}>
-                        {entry.username}
-                        {isMe && <span className="ml-2 text-xs bg-purple-500/30 text-purple-300 px-2 py-1 rounded">YOU</span>}
-                        {isJustSubmitted && <span className="ml-2 text-xs bg-green-500/30 text-green-300 px-2 py-1 rounded">NEW</span>}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn(
+                          'font-bold text-sm truncate',
+                          isMe ? 'text-[#40FFAF]' : 'text-white'
+                        )}>
+                          {entry.username}
+                        </span>
+                        {isMe && (
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-[#8840FF]/30 text-[#8840FF] uppercase tracking-wide">
+                            You
+                          </span>
+                        )}
+                        {isNew && (
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-[#40FFAF]/20 text-[#40FFAF] uppercase tracking-wide">
+                            New
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-400">
+                      <p className="text-white/25 text-xs mt-0.5">
                         {new Date(entry.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-
-                    <div className={`text-3xl font-black ${
-                      rank === 1 ? 'text-yellow-400'
-                        : rank === 2 ? 'text-gray-400'
-                        : rank === 3 ? 'text-orange-400'
-                        : isMe ? 'text-purple-400' : 'text-white'
-                    }`}>
-                      {entry.score?.toLocaleString() || 0}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Score */}
+                  <div className={cn(
+                    'font-black text-lg tabular-nums text-right',
+                    rank === 1 ? 'text-yellow-400' :
+                    rank === 2 ? 'text-slate-300'  :
+                    rank === 3 ? 'text-amber-500'  :
+                    isMe       ? 'text-[#40FFAF]'  : 'text-white'
+                  )}>
+                    {(entry.score || 0).toLocaleString()}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
-        <div className="mt-8 flex justify-center gap-4">
-          <button
-            onClick={() => router.push('/game')}
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-black text-xl transition-all hover:scale-105 shadow-lg shadow-purple-500/30"
-          >
-            ▶️ Play Solo
-          </button>
-          <button
-            onClick={() => router.push('/tournaments')}
-            className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-black text-xl transition-all hover:scale-105 shadow-lg shadow-green-500/30"
-          >
+        {/* Actions */}
+        <div className="flex gap-3 mt-8 justify-center">
+          <Button variant="primary" size="md" onClick={() => router.push('/game')}>
+            ▶ Play Solo
+          </Button>
+          <Button variant="ghost" size="md" onClick={() => router.push('/tournaments')}>
             🏆 Tournaments
-          </button>
+          </Button>
         </div>
 
-        <div className="mt-12 text-center text-gray-400 text-sm">
-          <p>Solo leaderboard shows the top 20 players from single-player games.</p>
-          <p className="mt-2">Want to compete? Join a tournament!</p>
-        </div>
+        <p className="text-center text-white/20 text-xs mt-8">
+          Solo leaderboard shows top 20 players from single-player games.
+        </p>
       </div>
     </div>
   );
@@ -148,8 +164,8 @@ function SoloLeaderboardContent() {
 export default function SoloLeaderboardPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-purple-900">
-        <div className="text-white text-2xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="w-10 h-10 border-2 border-[#40FFAF] border-t-transparent rounded-full animate-spin" />
       </div>
     }>
       <SoloLeaderboardContent />
